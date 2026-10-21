@@ -1,5 +1,7 @@
 package com.wumpus.game;
 
+import java.util.List;
+
 import com.badlogic.gdx.ApplicationAdapter;
 import com.badlogic.gdx.Gdx;
 import com.badlogic.gdx.Input;
@@ -32,11 +34,13 @@ public class GameApp extends ApplicationAdapter {
     private SpriteBatch batch;
     private ShapeRenderer shapes;
     private Room room;
+    private RoomRenderer roomRenderer;
     private Texture playerTexture;
     private BitmapFont font;
     private final GlyphLayout layout = new GlyphLayout();
     private Actor player;
     private ScriptRunner scripts;
+    private boolean showDebug;
 
     @Override
     public void create() {
@@ -58,8 +62,16 @@ public class GameApp extends ApplicationAdapter {
     }
 
     private void restart() {
+        if (scripts != null) {
+            scripts.clear();
+        }
+        if (roomRenderer != null) {
+            roomRenderer.dispose();
+        }
         room = Room.load(START_ROOM);
-        player = new Actor(room, 60, 50);
+        roomRenderer = new RoomRenderer(room);
+        Vector2 start = room.constrain(60, 50);
+        player = new Actor(room, start.x, start.y);
         scripts = new ScriptRunner(player);
         scripts.start(INTRO_SCRIPT, Gdx.files.classpath(INTRO_SCRIPT).readString("UTF-8"));
     }
@@ -74,7 +86,9 @@ public class GameApp extends ApplicationAdapter {
         if (Gdx.input.isKeyJustPressed(Input.Keys.R)) {
             restart();
         }
-
+        if (Gdx.input.isKeyJustPressed(Input.Keys.F1)) {
+            showDebug = !showDebug;
+        }
         if (Gdx.input.justTouched() && !scripts.isRunning()) {
             Vector2 target = viewport.unproject(new Vector2(Gdx.input.getX(), Gdx.input.getY()));
             player.walkTo(target.x, target.y);
@@ -86,18 +100,18 @@ public class GameApp extends ApplicationAdapter {
 
         ScreenUtils.clear(0.1f, 0.1f, 0.2f, 1f);
         viewport.apply();
-        shapes.setProjectionMatrix(camera.combined);
-        shapes.begin(ShapeRenderer.ShapeType.Filled);
-        shapes.setColor(0.25f, 0.3f, 0.4f, 1f);
-        room.drawFloor(shapes);
-        shapes.setColor(0.15f, 0.18f, 0.25f, 1f);
-        room.drawObstacles(shapes);
-        shapes.end();
         batch.setProjectionMatrix(camera.combined);
         batch.begin();
-        batch.draw(playerTexture, player.getPosition().x - PLAYER_WIDTH / 2f, player.getPosition().y);
+        float playerX = player.getPosition().x - PLAYER_WIDTH / 2f;
+        float playerY = player.getPosition().y;
+        roomRenderer.draw(batch, List.of(new RoomRenderer.Renderable(
+                playerY, b -> b.draw(playerTexture, playerX, playerY))));
         drawSpeech();
         batch.end();
+
+        if (showDebug) {
+            drawDebug();
+        }
     }
 
     private void drawSpeech() {
@@ -111,8 +125,23 @@ public class GameApp extends ApplicationAdapter {
         font.draw(batch, layout, x, y);
     }
 
+    /** F1: authored walk area in green, the margin-adjusted area characters actually walk on in yellow. */
+    private void drawDebug() {
+        shapes.setProjectionMatrix(camera.combined);
+        shapes.begin(ShapeRenderer.ShapeType.Line);
+        shapes.setColor(Color.GREEN);
+        shapes.polygon(room.getOutline());
+        room.getObstacles().forEach(shapes::polygon);
+        shapes.setColor(Color.YELLOW);
+        shapes.polygon(room.getWalkOutline());
+        room.getWalkObstacles().forEach(shapes::polygon);
+        shapes.end();
+    }
+
     @Override
     public void dispose() {
+        scripts.clear();
+        roomRenderer.dispose();
         batch.dispose();
         shapes.dispose();
         font.dispose();

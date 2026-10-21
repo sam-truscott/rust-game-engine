@@ -1,5 +1,6 @@
 package com.wumpus.game;
 
+import static org.junit.jupiter.api.Assertions.assertArrayEquals;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
@@ -87,6 +88,54 @@ class PathFinderTest {
         assertTrue(room.isWalkable(end));
         assertFalse(end.x > 80.01f && end.x < 119.99f && end.y > 30.01f && end.y < 69.99f);
         assertWalkable(room, start, path);
+    }
+
+    @Test
+    void marginKeepsPathsClearOfObstacles() {
+        Room room = new Room(FLOOR, List.of(BLOCK), 5, null, List.of());
+        Vector2 start = new Vector2(20, 50);
+        List<Vector2> path = room.findPath(start, 180, 50);
+
+        Vector2 previous = start;
+        for (Vector2 point : path) {
+            for (float t = 0; t <= 1; t += 0.01f) {
+                Vector2 sample = previous.cpy().lerp(point, t);
+                boolean insideMargin = sample.x > 75.01f && sample.x < 124.99f
+                        && sample.y > 25.01f && sample.y < 74.99f;
+                assertFalse(insideMargin, "too close to the block at " + sample);
+            }
+            previous = point;
+        }
+        assertEquals(180f, previous.x, 1e-3f);
+    }
+
+    @Test
+    void marginKeepsTargetsClearOfWalls() {
+        Room room = new Room(FLOOR, List.of(), 5, null, List.of());
+
+        List<Vector2> east = room.findPath(new Vector2(50, 50), 300, 50);
+        assertEquals(195f, east.get(east.size() - 1).x, 1e-3f);
+
+        List<Vector2> corner = room.findPath(new Vector2(50, 50), -20, -20);
+        assertEquals(5f, corner.get(corner.size() - 1).x, 1e-3f);
+        assertEquals(5f, corner.get(corner.size() - 1).y, 1e-3f);
+    }
+
+    @Test
+    void offsetMovesEdgesOutwardOrInwardWhateverTheWinding() {
+        float[] counterClockwise = { 10, 10, 20, 10, 20, 20, 10, 20 };
+        float[] clockwise = { 10, 10, 10, 20, 20, 20, 20, 10 };
+
+        assertArrayEquals(new float[] { 8, 8, 22, 8, 22, 22, 8, 22 }, Room.offset(counterClockwise, 2), 1e-4f);
+        assertArrayEquals(new float[] { 8, 8, 8, 22, 22, 22, 22, 8 }, Room.offset(clockwise, 2), 1e-4f);
+        assertArrayEquals(new float[] { 12, 12, 18, 12, 18, 18, 12, 18 }, Room.offset(counterClockwise, -2), 1e-4f);
+    }
+
+    @Test
+    void repeatedQueriesGiveTheSamePath() {
+        Room room = new Room(FLOOR, List.of(BLOCK));
+        Vector2 start = new Vector2(20, 50);
+        assertEquals(room.findPath(start, 180, 50), room.findPath(start, 180, 50));
     }
 
     @Test

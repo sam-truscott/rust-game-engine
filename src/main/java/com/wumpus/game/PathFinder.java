@@ -12,16 +12,33 @@ final class PathFinder {
     private static final float EPS = 1e-3f;
     private static final int START = 0;
     private static final int GOAL = 1;
+    private static final int FIRST_CORNER = 2;
 
-    private PathFinder() {
+    private final Room room;
+    private final List<Vector2> corners;
+    private final boolean[][] cornersVisible;
+
+    /** Precomputes which corners can see each other, since the room's geometry never changes. */
+    PathFinder(Room room) {
+        this.room = room;
+        corners = room.getVertices();
+        int count = corners.size();
+        cornersVisible = new boolean[count][count];
+        for (int i = 0; i < count; i++) {
+            for (int j = i + 1; j < count; j++) {
+                boolean visible = isVisible(room, corners.get(i), corners.get(j));
+                cornersVisible[i][j] = visible;
+                cornersVisible[j][i] = visible;
+            }
+        }
     }
 
     /** Returns the waypoints from start (exclusive) to goal (inclusive), or null if the goal is unreachable. */
-    static List<Vector2> find(Room room, Vector2 start, Vector2 goal) {
+    List<Vector2> find(Vector2 start, Vector2 goal) {
         List<Vector2> nodes = new ArrayList<>();
         nodes.add(start);
         nodes.add(goal);
-        nodes.addAll(room.getVertices());
+        nodes.addAll(corners);
 
         int count = nodes.size();
         float[] distance = new float[count];
@@ -50,7 +67,7 @@ final class PathFinder {
                     continue;
                 }
                 float candidate = distance[u] + nodes.get(u).dst(nodes.get(v));
-                if (candidate < distance[v] && isVisible(room, nodes.get(u), nodes.get(v))) {
+                if (candidate < distance[v] && isVisible(nodes, u, v)) {
                     distance[v] = candidate;
                     previous[v] = u;
                 }
@@ -62,6 +79,13 @@ final class PathFinder {
             path.addFirst(nodes.get(i).cpy());
         }
         return path;
+    }
+
+    private boolean isVisible(List<Vector2> nodes, int u, int v) {
+        if (u >= FIRST_CORNER && v >= FIRST_CORNER) {
+            return cornersVisible[u - FIRST_CORNER][v - FIRST_CORNER];
+        }
+        return isVisible(room, nodes.get(u), nodes.get(v));
     }
 
     /** True if the straight segment from a to b stays within the walkable area. */

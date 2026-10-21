@@ -6,6 +6,7 @@ import java.util.List;
 import java.util.function.Function;
 
 import org.luaj.vm2.Globals;
+import org.luaj.vm2.LuaError;
 import org.luaj.vm2.LuaThread;
 import org.luaj.vm2.LuaValue;
 import org.luaj.vm2.Varargs;
@@ -19,10 +20,14 @@ import com.badlogic.gdx.Gdx;
  * and yields; the script is resumed once that action has finished.
  */
 public class ScriptRunner {
+    private static final int MAX_CANCEL_RESUMES = 100;
+
     private static final class Script {
         final String name;
         final LuaThread thread;
         Action action;
+        boolean started;
+        boolean cancelled;
 
         Script(String name, LuaThread thread) {
             this.name = name;
@@ -64,8 +69,10 @@ public class ScriptRunner {
         globals.set(name, new VarArgFunction() {
             @Override
             public Varargs invoke(Varargs args) {
+                checkNotCancelled();
                 current.action = start.apply(args);
                 globals.yield(LuaValue.NONE);
+                checkNotCancelled();
                 return LuaValue.NONE;
             }
         });
@@ -80,7 +87,25 @@ public class ScriptRunner {
         return !scripts.isEmpty();
     }
 
+    private void checkNotCancelled() {
+        if (current.cancelled) {
+            throw new LuaError("script cancelled");
+        }
+    }
+
+    /** Ends all scripts. Suspended coroutines are resumed with an error so their Java threads exit. */
     public void clear() {
+        for (Script script : scripts) {
+            script.cancelled = true;
+            if (!script.started) {
+                continue;
+            }
+            current = script;
+            for (int i = 0; i < MAX_CANCEL_RESUMES && !"dead".equals(script.thread.getStatus()); i++) {
+                script.thread.resume(LuaValue.NONE);
+            }
+            current = null;
+        }
         scripts.clear();
     }
 
@@ -95,6 +120,7 @@ public class ScriptRunner {
                 script.action = null;
             }
             current = script;
+            script.started = true;
             Varargs result = script.thread.resume(LuaValue.NONE);
             current = null;
             if (!result.arg1().toboolean()) {
