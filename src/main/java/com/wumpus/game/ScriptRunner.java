@@ -76,6 +76,10 @@ public class ScriptRunner {
         scripts.add(new Script(name, new LuaThread(globals, chunk)));
     }
 
+    public boolean isRunning() {
+        return !scripts.isEmpty();
+    }
+
     public void clear() {
         scripts.clear();
     }

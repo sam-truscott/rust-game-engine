@@ -7,12 +7,14 @@ public class Actor {
     private static final float SPEECH_BASE_SECONDS = 1f;
     private static final float SPEECH_SECONDS_PER_CHAR = 0.05f;
 
+    private final Room room;
     private final Vector2 position = new Vector2();
     private Vector2 walkTarget;
     private String speech;
     private float speechRemaining;
 
-    public Actor(float x, float y) {
+    public Actor(Room room, float x, float y) {
+        this.room = room;
         position.set(x, y);
     }
 
@@ -25,7 +27,7 @@ public class Actor {
     }
 
     public void walkTo(float x, float y) {
-        walkTarget = new Vector2(x, y);
+        walkTarget = room.constrain(x, y);
     }
 
     public boolean isWalking() {

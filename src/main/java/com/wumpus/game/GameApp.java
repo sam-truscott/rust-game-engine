@@ -10,7 +10,9 @@ import com.badlogic.gdx.graphics.Texture;
 import com.badlogic.gdx.graphics.g2d.BitmapFont;
 import com.badlogic.gdx.graphics.g2d.GlyphLayout;
 import com.badlogic.gdx.graphics.g2d.SpriteBatch;
+import com.badlogic.gdx.graphics.glutils.ShapeRenderer;
 import com.badlogic.gdx.math.MathUtils;
+import com.badlogic.gdx.math.Vector2;
 import com.badlogic.gdx.utils.Align;
 import com.badlogic.gdx.utils.ScreenUtils;
 import com.badlogic.gdx.utils.viewport.FitViewport;
@@ -23,10 +25,13 @@ public class GameApp extends ApplicationAdapter {
     private static final int PLAYER_HEIGHT = 32;
     private static final float SPEECH_WRAP_WIDTH = 160;
     private static final String INTRO_SCRIPT = "scripts/intro.lua";
+    private static final String START_ROOM = "rooms/hall.lua";
 
     private OrthographicCamera camera;
     private Viewport viewport;
     private SpriteBatch batch;
+    private ShapeRenderer shapes;
+    private Room room;
     private Texture playerTexture;
     private BitmapFont font;
     private final GlyphLayout layout = new GlyphLayout();
@@ -38,6 +43,7 @@ public class GameApp extends ApplicationAdapter {
         camera = new OrthographicCamera();
         viewport = new FitViewport(VIRTUAL_WIDTH, VIRTUAL_HEIGHT, camera);
         batch = new SpriteBatch();
+        shapes = new ShapeRenderer();
         font = new BitmapFont();
         font.getData().setScale(0.6f);
 
@@ -52,7 +58,8 @@ public class GameApp extends ApplicationAdapter {
     }
 
     private void restart() {
-        player = new Actor(40, 40);
+        room = Room.load(START_ROOM);
+        player = new Actor(room, 60, 50);
         scripts = new ScriptRunner(player);
         scripts.start(INTRO_SCRIPT, Gdx.files.classpath(INTRO_SCRIPT).readString("UTF-8"));
     }
@@ -68,12 +75,22 @@ public class GameApp extends ApplicationAdapter {
             restart();
         }
 
+        if (Gdx.input.justTouched() && !scripts.isRunning()) {
+            Vector2 target = viewport.unproject(new Vector2(Gdx.input.getX(), Gdx.input.getY()));
+            player.walkTo(target.x, target.y);
+        }
+
         float delta = Gdx.graphics.getDeltaTime();
         player.update(delta);
         scripts.update(delta);
 
         ScreenUtils.clear(0.1f, 0.1f, 0.2f, 1f);
         viewport.apply();
+        shapes.setProjectionMatrix(camera.combined);
+        shapes.begin(ShapeRenderer.ShapeType.Filled);
+        shapes.setColor(0.25f, 0.3f, 0.4f, 1f);
+        room.drawFloor(shapes);
+        shapes.end();
         batch.setProjectionMatrix(camera.combined);
         batch.begin();
         batch.draw(playerTexture, player.getPosition().x - PLAYER_WIDTH / 2f, player.getPosition().y);
@@ -95,6 +112,7 @@ public class GameApp extends ApplicationAdapter {
     @Override
     public void dispose() {
         batch.dispose();
+        shapes.dispose();
         font.dispose();
         playerTexture.dispose();
     }
