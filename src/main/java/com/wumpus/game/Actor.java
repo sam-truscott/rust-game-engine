@@ -1,5 +1,8 @@
 package com.wumpus.game;
 
+import java.util.ArrayDeque;
+import java.util.Deque;
+
 import com.badlogic.gdx.math.Vector2;
 
 public class Actor {
@@ -9,7 +12,7 @@ public class Actor {
 
     private final Room room;
     private final Vector2 position = new Vector2();
-    private Vector2 walkTarget;
+    private final Deque<Vector2> path = new ArrayDeque<>();
     private String speech;
     private float speechRemaining;
 
@@ -27,11 +30,12 @@ public class Actor {
     }
 
     public void walkTo(float x, float y) {
-        walkTarget = room.constrain(x, y);
+        path.clear();
+        path.addAll(room.findPath(position, x, y));
     }
 
     public boolean isWalking() {
-        return walkTarget != null;
+        return !path.isEmpty();
     }
 
     public void say(String text) {
@@ -44,13 +48,17 @@ public class Actor {
     }
 
     public void update(float deltaSeconds) {
-        if (walkTarget != null) {
-            float step = WALK_SPEED * deltaSeconds;
-            if (position.dst(walkTarget) <= step) {
-                position.set(walkTarget);
-                walkTarget = null;
+        float step = WALK_SPEED * deltaSeconds;
+        while (step > 0 && !path.isEmpty()) {
+            Vector2 next = path.peekFirst();
+            float distance = position.dst(next);
+            if (distance <= step) {
+                position.set(next);
+                path.removeFirst();
+                step -= distance;
             } else {
-                position.add(walkTarget.cpy().sub(position).nor().scl(step));
+                position.add(next.cpy().sub(position).nor().scl(step));
+                step = 0;
             }
         }
         if (speech != null) {

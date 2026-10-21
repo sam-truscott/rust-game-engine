@@ -90,6 +90,8 @@ public class GameApp extends ApplicationAdapter {
         shapes.begin(ShapeRenderer.ShapeType.Filled);
         shapes.setColor(0.25f, 0.3f, 0.4f, 1f);
         room.drawFloor(shapes);
+        shapes.setColor(0.15f, 0.18f, 0.25f, 1f);
+        room.drawObstacles(shapes);
         shapes.end();
         batch.setProjectionMatrix(camera.combined);
         batch.begin();

@@ -1,5 +1,8 @@
 package com.wumpus.game;
 
+import java.util.ArrayList;
+import java.util.List;
+
 import org.luaj.vm2.Globals;
 import org.luaj.vm2.LuaValue;
 import org.luaj.vm2.lib.jse.JsePlatform;
@@ -10,44 +13,93 @@ import com.badlogic.gdx.math.EarClippingTriangulator;
 import com.badlogic.gdx.math.Intersector;
 import com.badlogic.gdx.math.Vector2;
 
-/** A room's walkable area. The area must be convex for straight-line walking to stay inside it. */
+/** A room's walkable area: an outline (possibly concave) with obstacle holes cut out of it. */
 public class Room {
-    private final float[] walkArea;
-    private final short[] triangles;
+    private static final float BOUNDARY_EPS = 0.01f;
 
-    public Room(float[] walkArea) {
-        this.walkArea = walkArea;
-        this.triangles = new EarClippingTriangulator().computeTriangles(walkArea).toArray();
+    public record Segment(Vector2 a, Vector2 b) {
+    }
+
+    private final float[] outline;
+    private final List<float[]> obstacles;
+    private final List<Vector2> vertices = new ArrayList<>();
+    private final List<Segment> edges = new ArrayList<>();
+
+    public Room(float[] outline, List<float[]> obstacles) {
+        this.outline = outline;
+        this.obstacles = obstacles;
+        addBoundary(outline);
+        obstacles.forEach(this::addBoundary);
+    }
+
+    private void addBoundary(float[] ring) {
+        int count = ring.length / 2;
+        int first = vertices.size();
+        for (int i = 0; i < count; i++) {
+            vertices.add(new Vector2(ring[2 * i], ring[2 * i + 1]));
+        }
+        for (int i = 0; i < count; i++) {
+            edges.add(new Segment(vertices.get(first + i), vertices.get(first + (i + 1) % count)));
+        }
     }
 
     public static Room load(String classpathPath) {
         Globals globals = JsePlatform.standardGlobals();
         String source = Gdx.files.classpath(classpathPath).readString("UTF-8");
-        LuaValue points = globals.load(source, classpathPath).call().get("walkArea");
-        float[] area = new float[points.length() * 2];
-        for (int i = 0; i < points.length(); i++) {
-            LuaValue point = points.get(i + 1);
-            area[2 * i] = (float) point.get(1).checkdouble();
-            area[2 * i + 1] = (float) point.get(2).checkdouble();
+        LuaValue table = globals.load(source, classpathPath).call();
+
+        List<float[]> obstacles = new ArrayList<>();
+        LuaValue obstacleTables = table.get("obstacles");
+        for (int i = 1; i <= obstacleTables.length(); i++) {
+            obstacles.add(readPoints(obstacleTables.get(i)));
         }
-        return new Room(area);
+        return new Room(readPoints(table.get("walkArea")), obstacles);
     }
 
-    /** Returns the point itself if it is walkable, otherwise the nearest point on the walk area's edge. */
-    public Vector2 constrain(float x, float y) {
-        if (Intersector.isPointInPolygon(walkArea, 0, walkArea.length, x, y)) {
-            return new Vector2(x, y);
+    private static float[] readPoints(LuaValue points) {
+        float[] flat = new float[points.length() * 2];
+        for (int i = 0; i < points.length(); i++) {
+            LuaValue point = points.get(i + 1);
+            flat[2 * i] = (float) point.get(1).checkdouble();
+            flat[2 * i + 1] = (float) point.get(2).checkdouble();
         }
-        Vector2 point = new Vector2(x, y);
+        return flat;
+    }
+
+    public List<Vector2> getVertices() {
+        return vertices;
+    }
+
+    public List<Segment> getEdges() {
+        return edges;
+    }
+
+    /** The boundary counts as walkable, so paths can run along walls and around obstacle corners. */
+    public boolean isWalkable(Vector2 point) {
+        if (distanceToBoundary(point) < BOUNDARY_EPS) {
+            return true;
+        }
+        if (!Intersector.isPointInPolygon(outline, 0, outline.length, point.x, point.y)) {
+            return false;
+        }
+        for (float[] obstacle : obstacles) {
+            if (Intersector.isPointInPolygon(obstacle, 0, obstacle.length, point.x, point.y)) {
+                return false;
+            }
+        }
+        return true;
+    }
+
+    private float distanceToBoundary(Vector2 point) {
+        return point.dst(nearestBoundaryPoint(point));
+    }
+
+    private Vector2 nearestBoundaryPoint(Vector2 point) {
         Vector2 nearest = new Vector2();
         Vector2 best = new Vector2();
         float bestDistance = Float.MAX_VALUE;
-        int count = walkArea.length / 2;
-        for (int i = 0; i < count; i++) {
-            int next = (i + 1) % count;
-            Vector2 start = new Vector2(walkArea[2 * i], walkArea[2 * i + 1]);
-            Vector2 end = new Vector2(walkArea[2 * next], walkArea[2 * next + 1]);
-            Intersector.nearestSegmentPoint(start, end, point, nearest);
+        for (Segment edge : edges) {
+            Intersector.nearestSegmentPoint(edge.a(), edge.b(), point, nearest);
             float distance = nearest.dst2(point);
             if (distance < bestDistance) {
                 bestDistance = distance;
@@ -57,13 +109,35 @@ public class Room {
         return best;
     }
 
-    /** Fills the walk area using the shape renderer's current colour. */
+    /** Returns the point itself if it is walkable, otherwise the nearest point on the boundary. */
+    public Vector2 constrain(float x, float y) {
+        Vector2 point = new Vector2(x, y);
+        return isWalkable(point) ? point : nearestBoundaryPoint(point);
+    }
+
+    /** Waypoints for walking from a point to the nearest walkable point to (x, y); empty if unreachable. */
+    public List<Vector2> findPath(Vector2 from, float x, float y) {
+        List<Vector2> path = PathFinder.find(this, from, constrain(x, y));
+        return path == null ? List.of() : path;
+    }
+
+    /** Fills the walkable outline using the shape renderer's current colour. */
     public void drawFloor(ShapeRenderer shapes) {
-        for (int i = 0; i < triangles.length; i += 3) {
+        fill(shapes, outline);
+    }
+
+    /** Fills the obstacles using the shape renderer's current colour. */
+    public void drawObstacles(ShapeRenderer shapes) {
+        obstacles.forEach(obstacle -> fill(shapes, obstacle));
+    }
+
+    private static void fill(ShapeRenderer shapes, float[] ring) {
+        short[] t = new EarClippingTriangulator().computeTriangles(ring).toArray();
+        for (int i = 0; i < t.length; i += 3) {
             shapes.triangle(
-                    walkArea[2 * triangles[i]], walkArea[2 * triangles[i] + 1],
-                    walkArea[2 * triangles[i + 1]], walkArea[2 * triangles[i + 1] + 1],
-                    walkArea[2 * triangles[i + 2]], walkArea[2 * triangles[i + 2] + 1]);
+                    ring[2 * t[i]], ring[2 * t[i] + 1],
+                    ring[2 * t[i + 1]], ring[2 * t[i + 1] + 1],
+                    ring[2 * t[i + 2]], ring[2 * t[i + 2] + 1]);
         }
     }
 }
