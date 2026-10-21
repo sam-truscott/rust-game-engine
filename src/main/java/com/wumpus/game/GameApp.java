@@ -7,8 +7,6 @@ import com.badlogic.gdx.Gdx;
 import com.badlogic.gdx.Input;
 import com.badlogic.gdx.graphics.Color;
 import com.badlogic.gdx.graphics.OrthographicCamera;
-import com.badlogic.gdx.graphics.Pixmap;
-import com.badlogic.gdx.graphics.Texture;
 import com.badlogic.gdx.graphics.g2d.BitmapFont;
 import com.badlogic.gdx.graphics.g2d.GlyphLayout;
 import com.badlogic.gdx.graphics.g2d.SpriteBatch;
@@ -23,9 +21,8 @@ import com.badlogic.gdx.utils.viewport.Viewport;
 public class GameApp extends ApplicationAdapter {
     private static final int VIRTUAL_WIDTH = 320;
     private static final int VIRTUAL_HEIGHT = 180;
-    private static final int PLAYER_WIDTH = 16;
-    private static final int PLAYER_HEIGHT = 32;
     private static final float SPEECH_WRAP_WIDTH = 160;
+    private static final String PLAYER_SPRITE = "characters/player.png";
     private static final String INTRO_SCRIPT = "scripts/intro.lua";
     private static final String START_ROOM = "rooms/hall.lua";
 
@@ -35,7 +32,7 @@ public class GameApp extends ApplicationAdapter {
     private ShapeRenderer shapes;
     private Room room;
     private RoomRenderer roomRenderer;
-    private Texture playerTexture;
+    private CharacterSprite playerSprite;
     private BitmapFont font;
     private final GlyphLayout layout = new GlyphLayout();
     private Actor player;
@@ -51,12 +48,7 @@ public class GameApp extends ApplicationAdapter {
         font = new BitmapFont();
         font.getData().setScale(0.6f);
 
-        Pixmap pixmap = new Pixmap(PLAYER_WIDTH, PLAYER_HEIGHT, Pixmap.Format.RGBA8888);
-        pixmap.setColor(Color.ORANGE);
-        pixmap.fill();
-        playerTexture = new Texture(pixmap);
-        playerTexture.setFilter(Texture.TextureFilter.Nearest, Texture.TextureFilter.Nearest);
-        pixmap.dispose();
+        playerSprite = new CharacterSprite(PLAYER_SPRITE);
 
         restart();
     }
@@ -102,10 +94,8 @@ public class GameApp extends ApplicationAdapter {
         viewport.apply();
         batch.setProjectionMatrix(camera.combined);
         batch.begin();
-        float playerX = player.getPosition().x - PLAYER_WIDTH / 2f;
-        float playerY = player.getPosition().y;
         roomRenderer.draw(batch, List.of(new RoomRenderer.Renderable(
-                playerY, b -> b.draw(playerTexture, playerX, playerY))));
+                player.getPosition().y, b -> playerSprite.draw(b, player))));
         drawSpeech();
         batch.end();
 
@@ -121,7 +111,7 @@ public class GameApp extends ApplicationAdapter {
         }
         layout.setText(font, speech, Color.WHITE, SPEECH_WRAP_WIDTH, Align.center, true);
         float x = MathUtils.clamp(player.getPosition().x - SPEECH_WRAP_WIDTH / 2f, 0, VIRTUAL_WIDTH - SPEECH_WRAP_WIDTH);
-        float y = Math.min(player.getPosition().y + PLAYER_HEIGHT + 4 + layout.height, VIRTUAL_HEIGHT);
+        float y = Math.min(player.getPosition().y + CharacterSprite.FRAME_HEIGHT + 4 + layout.height, VIRTUAL_HEIGHT);
         font.draw(batch, layout, x, y);
     }
 
@@ -145,6 +135,6 @@ public class GameApp extends ApplicationAdapter {
         batch.dispose();
         shapes.dispose();
         font.dispose();
-        playerTexture.dispose();
+        playerSprite.dispose();
     }
 }
