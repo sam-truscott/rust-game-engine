@@ -13,5 +13,7 @@ public final class Main {
         config.setWindowedMode(1280, 720);
         config.useVsync(true);
         new Lwjgl3Application(new GameApp(), config);
+        // LuaJ coroutine threads are non-daemon and would keep the JVM alive
+        System.exit(0);
     }
 }

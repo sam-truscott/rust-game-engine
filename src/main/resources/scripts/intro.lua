@@ -1,0 +1,6 @@
+say("Hello. I'm a script running as a coroutine.")
+walkTo(250, 40)
+say("That was a long walk.")
+wait(1)
+walkTo(40, 100)
+say("Press R to run this script again.")
