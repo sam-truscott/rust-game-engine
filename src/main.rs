@@ -118,6 +118,12 @@ impl Game {
             }
             (true, false) => resume_session(&store),
         };
+        if persist {
+            let seed = std::time::SystemTime::now()
+                .duration_since(std::time::UNIX_EPOCH)
+                .map_or(1, |since| since.subsec_nanos() ^ since.as_secs() as u32);
+            session.world.seed_street(seed);
+        }
         Game {
             sprite: CharacterSprite::new(PLAYER_SPRITE),
             cursor: CursorSprite::new(CURSOR_SPRITE),

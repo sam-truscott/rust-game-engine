@@ -162,3 +162,14 @@ fn rooms_and_items_are_loaded_without_file_or_os_access() {
     assert!(Room::from_lua("return load('return 1')()", "x").is_err());
     assert!(game::items::Items::from_lua("os.exit()", "x").is_err());
 }
+
+#[test]
+fn the_hall_window_shows_the_street_and_the_closet_has_none() {
+    let street = hall()
+        .street()
+        .copied()
+        .expect("the hall has a street view");
+    assert!(street.glass.w > 0.0 && street.mirror.is_some());
+    assert!(street.floor < street.glass.y);
+    assert!(closet().street().is_none());
+}

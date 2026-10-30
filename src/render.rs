@@ -1,7 +1,8 @@
 use game::actor::Actor;
 use game::assets;
 use game::direction::Direction;
-use game::room::{Prop, Room};
+use game::room::{Prop, Room, StreetView};
+use game::street::Car;
 use game::ui::{RENDER_SCALE, SCREEN_HEIGHT, SCREEN_WIDTH};
 use game::world::World;
 use macroquad::prelude::*;
@@ -88,12 +89,14 @@ enum Item<'a> {
 pub struct RoomRenderer {
     background: Option<Texture2D>,
     props: Vec<(Prop, Texture2D)>,
+    street: Option<StreetView>,
 }
 
 impl RoomRenderer {
     pub fn new(room: &Room) -> Self {
         RoomRenderer {
             background: room.background().map(load_texture),
+            street: room.street().copied(),
             props: room
                 .props()
                 .iter()
@@ -119,6 +122,12 @@ impl RoomRenderer {
             );
         }
 
+        let car = self.street.as_ref().zip(world.car());
+        if let Some((view, car)) = &car {
+            draw_car(car, view, self.background.as_ref());
+            draw_light(car, view);
+        }
+
         let shown = |prop: &Prop| !prop.id.as_deref().is_some_and(|id| world.is_hidden(id));
         let mut items: Vec<(f32, Item)> = self
             .props
@@ -134,6 +143,10 @@ impl RoomRenderer {
                 Item::Prop(prop, texture) => draw_prop(prop, texture, world),
                 Item::Actor => sprite.draw(actor),
             }
+        }
+
+        if let Some((_, car)) = &car {
+            draw_wash(car);
         }
 
         if dark {
@@ -222,4 +235,185 @@ impl CursorSprite {
             },
         );
     }
+}
+
+/// Art pixel of the car, in game units (the room art is drawn in 5x5 blocks of the 1280x720 picture).
+const BLOCK: f32 = 1.25;
+const CAR_PATTERN: [&str; 4] = ["..BBBBB...", ".BCCBCCB..", "TBBBBBBBBH", ".WW....WW."];
+const CAR_BODIES: [Color; 3] = [
+    Color::new(0.10, 0.13, 0.20, 1.0),
+    Color::new(0.30, 0.09, 0.10, 1.0),
+    Color::new(0.12, 0.20, 0.17, 1.0),
+];
+const HEADLIGHT: Color = Color::new(1.0, 0.86, 0.55, 1.0);
+const LIGHT_BANDS: usize = 14;
+
+/// Draws a filled rectangle given in room coordinates (y up), cut to `clip` when there is one.
+fn room_rect(x: f32, y: f32, w: f32, h: f32, clip: Option<Rect>, color: Color) {
+    let (mut x0, mut x1, mut y0, mut y1) = (x, x + w, y, y + h);
+    if let Some(clip) = clip {
+        x0 = x0.max(clip.x);
+        x1 = x1.min(clip.x + clip.w);
+        y0 = y0.max(clip.y);
+        y1 = y1.min(clip.y + clip.h);
+    }
+    if x1 > x0 && y1 > y0 {
+        draw_rectangle(x0, SCREEN_HEIGHT - y1, x1 - x0, y1 - y0, color);
+    }
+}
+
+fn with_alpha(color: Color, alpha: f32) -> Color {
+    Color::new(color.r, color.g, color.b, alpha)
+}
+
+/// How bright the room is lit by a car's headlights: nothing as it enters the window, most as it passes.
+fn glow(car: &Car) -> f32 {
+    (car.progress * std::f32::consts::PI).sin()
+}
+
+/// The x of a car's front when it is `progress` of the way across `glass`.
+fn car_x(car: &Car, glass: Rect) -> f32 {
+    let width = CAR_PATTERN[0].len() as f32 * BLOCK;
+    let along = if car.rightwards {
+        car.progress
+    } else {
+        1.0 - car.progress
+    };
+    glass.x - width + along * (glass.w + 2.0 * width)
+}
+
+/// The car on the street, seen through the lower pane of the window.
+fn draw_car(car: &Car, view: &StreetView, background: Option<&Texture2D>) {
+    let glass = view.glass;
+    let left = car_x(car, glass);
+    let body = CAR_BODIES[car.style % CAR_BODIES.len()];
+    let width = CAR_PATTERN[0].len();
+    for (row, line) in CAR_PATTERN.iter().enumerate() {
+        for (column, cell) in line.chars().enumerate() {
+            let color = match cell {
+                'B' => body,
+                'C' => Color::new(0.20, 0.25, 0.38, 1.0),
+                'H' => HEADLIGHT,
+                'T' => Color::new(0.85, 0.12, 0.10, 1.0),
+                'W' => Color::new(0.02, 0.02, 0.04, 1.0),
+                _ => continue,
+            };
+            // The pattern faces right; mirror it for a car driving left.
+            let column = if car.rightwards {
+                column
+            } else {
+                width - 1 - column
+            };
+            room_rect(
+                left + column as f32 * BLOCK,
+                glass.y + (CAR_PATTERN.len() - 1 - row) as f32 * BLOCK,
+                BLOCK,
+                BLOCK,
+                Some(glass),
+                color,
+            );
+        }
+    }
+    // A soft glow around the headlight on the glass.
+    let front = if car.rightwards {
+        left + width as f32 * BLOCK
+    } else {
+        left
+    };
+    let ahead = if car.rightwards { 1.0 } else { -1.0 };
+    for (step, alpha) in [(1.0, 0.22), (2.0, 0.12), (3.0, 0.06)] {
+        room_rect(
+            front.min(front + ahead * step * BLOCK * 2.0),
+            glass.y,
+            step * BLOCK * 2.0,
+            BLOCK * 3.0,
+            Some(glass),
+            with_alpha(HEADLIGHT, alpha),
+        );
+    }
+    // The bar between the two panes is in front of the car: put it back from the picture.
+    if let Some(background) = background {
+        let scale = background.width() / SCREEN_WIDTH;
+        let (x, w) = (glass.x + glass.w * 0.4, BLOCK);
+        let bar = Rect::new(
+            x * scale,
+            (SCREEN_HEIGHT - glass.y - glass.h) * scale,
+            w * scale,
+            glass.h * scale,
+        );
+        draw_texture_ex(
+            background,
+            x,
+            SCREEN_HEIGHT - glass.y - glass.h,
+            WHITE,
+            DrawTextureParams {
+                source: Some(bar),
+                dest_size: Some(vec2(w, glass.h)),
+                ..Default::default()
+            },
+        );
+    }
+}
+
+/// The light that comes in through the window: a beam falling down the wall and over the floor,
+/// sliding along as the car passes, and a glint in the mirror.
+fn draw_light(car: &Car, view: &StreetView) {
+    let strength = glow(car);
+    let glass = view.glass;
+    let ahead = if car.rightwards { 1.0 } else { -1.0 };
+    let centre = glass.x
+        + glass.w
+            * if car.rightwards {
+                car.progress
+            } else {
+                1.0 - car.progress
+            };
+    let top = glass.y;
+    let depth = top - view.floor;
+    for band in 0..LIGHT_BANDS {
+        let t = band as f32 / LIGHT_BANDS as f32;
+        let y = top - (band + 1) as f32 * depth / LIGHT_BANDS as f32;
+        // Quantised, so the light falls off in steps like the dithered pools in the art.
+        let alpha = ((1.0 - t).powf(1.4) * strength * 0.30 * 10.0).round() / 10.0;
+        let middle = centre + ahead * depth * 0.45 * t;
+        let half = glass.w * 0.18 + depth * 0.22 * t;
+        let snap = |value: f32| (value / BLOCK).round() * BLOCK;
+        room_rect(
+            snap(middle - half),
+            snap(y),
+            snap(half * 2.0),
+            snap(depth / LIGHT_BANDS as f32).max(BLOCK),
+            None,
+            with_alpha(Color::new(1.0, 0.7, 0.35, 1.0), alpha),
+        );
+    }
+    if let Some(mirror) = view.mirror {
+        let stripe = mirror.w * 0.22;
+        let across = (mirror.w + stripe)
+            * if car.rightwards {
+                car.progress
+            } else {
+                1.0 - car.progress
+            };
+        let x = mirror.x + across - stripe;
+        room_rect(
+            x,
+            mirror.y,
+            stripe,
+            mirror.h,
+            Some(mirror),
+            with_alpha(Color::new(1.0, 0.9, 0.7, 1.0), strength * 0.35),
+        );
+    }
+}
+
+/// A faint warm wash over everything, so the whole room brightens a little.
+fn draw_wash(car: &Car) {
+    draw_rectangle(
+        0.0,
+        0.0,
+        SCREEN_WIDTH,
+        SCREEN_HEIGHT,
+        Color::new(1.0, 0.8, 0.5, glow(car) * 0.05),
+    );
 }

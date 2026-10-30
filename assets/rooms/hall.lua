@@ -5,6 +5,8 @@
 return {
   background = "rooms/hall.png",
   margin = 8,
+  -- Cars pass behind the lower window pane; their headlights sweep the room and the bar mirror.
+  street = { glass = { 67.5, 122.5, 38.75, 11.25 }, mirror = { 207.5, 123, 65, 26 }, floor = 60 },
   walkArea = {
     { 20, 20 },
     { 276, 20 },

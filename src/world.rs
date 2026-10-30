@@ -2,6 +2,8 @@ use std::cell::RefCell;
 use std::collections::{HashMap, HashSet};
 use std::rc::Rc;
 
+use crate::street::{Car, Street};
+
 #[derive(Default)]
 struct Data {
     inventory: Vec<String>,
@@ -11,6 +13,7 @@ struct Data {
     lit: HashSet<String>,
     flags: HashSet<String>,
     clock: f64,
+    street: Street,
 }
 
 /// Frames `first` to `last` (either direction) shown one after another, each for 1/fps seconds.
@@ -143,6 +146,16 @@ impl World {
         (((data.clock + phase as f64) * fps as f64) as usize) % count
     }
 
+    /// The car now passing the window, if any.
+    pub fn car(&self) -> Option<Car> {
+        self.0.borrow().street.car()
+    }
+
+    /// Restarts the traffic from a seed, so the cars come at different times.
+    pub fn seed_street(&self, seed: u32) {
+        self.0.borrow_mut().street = Street::new(seed);
+    }
+
     pub fn is_animating(&self, id: &str) -> bool {
         self.0.borrow().animations.contains_key(id)
     }
@@ -151,6 +164,7 @@ impl World {
     pub fn advance(&self, delta_seconds: f32) {
         let mut data = self.0.borrow_mut();
         data.clock += delta_seconds as f64;
+        data.street.advance(delta_seconds);
         for animation in data.animations.values_mut() {
             animation.elapsed += delta_seconds;
         }

@@ -8,5 +8,6 @@ pub mod room;
 pub mod save;
 pub mod script;
 pub mod session;
+pub mod street;
 pub mod ui;
 pub mod world;

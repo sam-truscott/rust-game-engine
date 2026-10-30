@@ -1,0 +1,27 @@
+# A car drives past the window: shots every half second show it crossing and the light sweeping the room.
+# Run: target/debug/game.exe --auto play/street.txt --out screenshots
+wait 2
+wait 0.5
+shot car_01
+wait 0.5
+shot car_02
+wait 0.5
+shot car_03
+wait 0.5
+shot car_04
+wait 0.5
+shot car_05
+wait 0.5
+shot car_06
+wait 0.5
+shot car_07
+wait 0.5
+shot car_08
+wait 0.5
+shot car_09
+wait 0.5
+shot car_10
+wait 0.5
+shot car_11
+wait 0.5
+shot car_12
