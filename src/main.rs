@@ -398,6 +398,7 @@ fn parse_args() -> Args {
         match word.as_str() {
             "--auto" => args.script = words.next(),
             "--out" => args.out = words.next().unwrap_or(args.out),
+            "--fullscreen" | "-f" => {}
             other => eprintln!("ignoring unknown argument {other}"),
         }
     }
@@ -409,6 +410,7 @@ fn window_conf() -> Conf {
         window_title: "Game".to_owned(),
         window_width: 1280,
         window_height: 720,
+        fullscreen: std::env::args().any(|word| word == "--fullscreen" || word == "-f"),
         ..Default::default()
     }
 }
@@ -435,6 +437,9 @@ async fn main() {
     let mut game = Game::new();
 
     loop {
+        if automation.is_none() && is_key_pressed(KeyCode::Escape) {
+            break;
+        }
         let view = View::current();
         let (frame, delta) = match automation.as_mut() {
             Some(automation) => (automation.next_frame(FIXED_DELTA), FIXED_DELTA),
