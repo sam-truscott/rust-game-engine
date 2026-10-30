@@ -644,3 +644,21 @@ fn a_double_click_on_the_floor_jumps_there() {
     assert_eq!(session.player.position(), target);
     assert!(!session.player.is_walking());
 }
+
+#[test]
+fn double_clicking_a_beer_drinks_it_and_the_empty_glass_goes_back_to_the_barman() {
+    let mut session = session();
+    session.world.give("beer");
+    double_click(&mut session, SLOT_0);
+    assert_eq!(session.holding, None);
+    settle(&mut session);
+    assert_eq!(session.world.items(), vec!["empty_glass"]);
+
+    double_click(&mut session, SLOT_0);
+    assert_eq!(session.holding.as_deref(), Some("empty_glass"));
+    click(&mut session, point("hall", "barman"));
+    let words = next_words(&mut session);
+    assert!(!words.is_empty());
+    settle(&mut session);
+    assert!(session.world.items().is_empty());
+}

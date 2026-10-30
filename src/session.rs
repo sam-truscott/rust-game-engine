@@ -270,6 +270,10 @@ impl Session {
                 self.scripts.use_with_item(&held, item)
             };
             report(item, started);
+        } else if double && self.items.get(item).is_some_and(|i| i.self_use) {
+            self.interrupt();
+            self.commit();
+            report(item, self.scripts.interact_item(item, INTERACT));
         } else if double {
             self.interrupt();
             self.holding = Some(item.to_owned());

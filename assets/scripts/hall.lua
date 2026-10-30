@@ -74,6 +74,12 @@ hotspot.barman = {
       setFlag("served")
       say("Cheers.")
     end,
+    empty_glass = function()
+      take("empty_glass")
+      say("Your glass.")
+      wait(0.4)
+      say("Barman: Thanks. I've been dying for one of those.")
+    end,
   },
 }
 
@@ -94,4 +100,14 @@ hotspot.patron_right = {
 
 item.beer = {
   look = function() say("A cold pint. Better than the key, anyway.") end,
+  interact = function()
+    say("Down the hatch.")
+    take("beer")
+    give("empty_glass")
+    say("Ahh. That was almost worth the coin.")
+  end,
+}
+
+item.empty_glass = {
+  look = function() say("Empty. The story of my life.") end,
 }

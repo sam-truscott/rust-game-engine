@@ -9,6 +9,8 @@ pub struct Item {
     pub id: String,
     pub name: String,
     pub color: Color,
+    /// A double click uses it on its own (drinking a beer) instead of picking it up to combine.
+    pub self_use: bool,
 }
 
 #[derive(Default)]
@@ -33,6 +35,7 @@ impl Items {
                 id,
                 name: item_name,
                 color,
+                self_use: item.get::<Option<bool>>("self_use")?.unwrap_or(false),
             });
         }
         items.sort_by(|a, b| a.id.cmp(&b.id));

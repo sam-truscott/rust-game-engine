@@ -28,4 +28,12 @@ shot b2_serving             # the barman takes the coin and pours
 wait 4
 shot b3_served              # back to polishing, a beer in the inventory
 where                       # carrying ["beer"]
+click 16 13
+click 16 13                 # drink the beer: an empty glass replaces it
+wait 5
+click 16 13
+click 16 13
+click 251 126               # give the glass back
+wait 8
+where                       # carrying []
 quit

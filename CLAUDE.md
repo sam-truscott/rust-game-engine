@@ -114,3 +114,7 @@ The look is film noir, early evening: dark desaturated palettes with blue shadow
 ## Recording a GIF of the game
 
 No screen capture: run a temporary play script (shots every 1/30 s via `shot`, see `play/street.txt`) and stitch the PNGs with System.Drawing's GIF encoder through `powershell.exe`, keeping scripts and frames in a temp folder outside the repo and deleting them afterwards. GIF delays are whole hundredths of a second, so about 30 fps is the practical maximum (the user asked for the normal frame rate, not 5 fps); 480x270 at 30 fps is ~11 MB because that encoder compresses poorly. The street timer is seeded in scripted play, so the car appears at the same moment every run.
+
+## Self-use items
+
+An item with `self_use = true` in `assets/items.lua` is used on its own by a double click (its `item.<id>.interact` handler runs at once) instead of being picked up to combine. The beer drinks itself (`take("beer")`, `give("empty_glass")`); the empty glass is an ordinary item that goes back to the barman (`use_with.empty_glass` on `hotspot.barman`), who thanks the player sarcastically. `play/bar.txt` ends with this.
