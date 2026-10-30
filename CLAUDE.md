@@ -2,7 +2,7 @@
 
 2D point-and-click adventure engine and game in the style of Thimbleweed Park (own engine, story, art and puzzles). Rust (edition 2024), macroquad for window/input/drawing, mlua (vendored Lua 5.4) for scripting. Crate name `game`.
 
-This is the `rust-port` branch. The earlier Java/LibGDX/LuaJ version (Maven, Eclipse) is on `master`; `git show master:src/main/java/com/wumpus/game/<File>.java` shows any original file.
+Everything is on `master` (remote `origin`, git@github.com:sam-truscott/game.git). The engine was ported from Java/LibGDX/LuaJ (Maven, Eclipse); the last Java commit is `aca1a71`, so `git show aca1a71:src/main/java/com/wumpus/game/<File>.java` shows any original file.
 
 ## Environment (Windows 11 on ARM64)
 
