@@ -14,16 +14,19 @@ fn every_button_is_found_at_its_centre() {
 }
 
 #[test]
-fn no_button_in_the_gaps_or_below_the_bar() {
+fn no_button_in_the_gaps_or_above_the_panel() {
     let first = ui::button_rect(Verb::ALL[0]);
     let second = ui::button_rect(Verb::ALL[1]);
     let gap = vec2((first.x + first.w + second.x) / 2.0, centre(first).y);
     assert_eq!(ui::verb_at(gap), None);
-    assert_eq!(ui::verb_at(vec2(centre(first).x, 50.0)), None);
+    assert_eq!(
+        ui::verb_at(vec2(centre(first).x, ui::PANEL_HEIGHT + 10.0)),
+        None
+    );
 }
 
 #[test]
-fn the_buttons_fit_on_screen_inside_the_bar() {
+fn the_buttons_fit_on_screen_inside_the_panel() {
     for verb in Verb::ALL {
         let rect = ui::button_rect(verb);
         assert!(
@@ -31,22 +34,40 @@ fn the_buttons_fit_on_screen_inside_the_bar() {
             "{verb:?} is off screen"
         );
         assert!(
-            rect.y >= ui::PANEL_BOTTOM && rect.y + rect.h <= ui::SCREEN_HEIGHT,
-            "{verb:?} is outside the bar"
+            rect.y >= 0.0 && rect.y + rect.h <= ui::PANEL_HEIGHT,
+            "{verb:?} is outside the panel"
         );
+        assert!(ui::in_panel(centre(rect)));
     }
-    const {
-        assert!(
-            ui::SENTENCE_BASELINE > ui::PANEL_BOTTOM && ui::SENTENCE_BASELINE < ui::SCREEN_HEIGHT
-        )
-    };
 }
 
 #[test]
-fn the_bar_covers_the_top_of_the_screen_only() {
-    assert!(ui::in_panel(vec2(100.0, ui::PANEL_BOTTOM)));
-    assert!(ui::in_panel(vec2(100.0, 179.0)));
-    assert!(!ui::in_panel(vec2(100.0, ui::PANEL_BOTTOM - 1.0)));
+fn the_buttons_sit_above_the_inventory_slots() {
+    let lowest_button = Verb::ALL
+        .iter()
+        .map(|&verb| ui::button_rect(verb).y)
+        .fold(f32::MAX, f32::min);
+    let highest_slot = (0..ui::SLOT_COUNT)
+        .map(|index| ui::slot_rect(index).y + ui::slot_rect(index).h)
+        .fold(0.0, f32::max);
+    assert!(lowest_button > highest_slot, "buttons and slots overlap");
+}
+
+#[test]
+fn the_panel_covers_the_bottom_of_the_screen_only() {
+    assert!(ui::in_panel(vec2(100.0, 0.0)));
+    assert!(ui::in_panel(vec2(100.0, ui::PANEL_HEIGHT - 0.5)));
+    assert!(!ui::in_panel(vec2(100.0, ui::PANEL_HEIGHT)));
+    assert!(!ui::in_panel(vec2(100.0, 179.0)));
+}
+
+#[test]
+fn screen_and_room_points_convert_both_ways() {
+    let room = vec2(120.0, 55.0);
+    let screen = ui::to_screen(room);
+    assert_eq!(screen, vec2(120.0, 55.0 + ui::PANEL_HEIGHT));
+    assert_eq!(ui::to_room(screen), room);
+    assert!(!ui::in_panel(ui::to_screen(vec2(0.0, 0.0))));
 }
 
 #[test]
@@ -59,31 +80,6 @@ fn verbs_have_distinct_labels_and_script_keys() {
     keys.dedup();
     assert_eq!(labels.len(), Verb::ALL.len());
     assert_eq!(keys.len(), Verb::ALL.len());
-}
-
-#[test]
-fn the_sentence_names_what_the_cursor_is_over() {
-    assert_eq!(ui::sentence(Verb::LookAt, None, None), "Look at");
-    assert_eq!(
-        ui::sentence(Verb::LookAt, None, Some("counter")),
-        "Look at counter"
-    );
-    assert_eq!(
-        ui::sentence(Verb::WalkTo, None, Some("counter")),
-        "Walk to counter"
-    );
-}
-
-#[test]
-fn holding_an_item_makes_the_sentence_use_it_with_something() {
-    assert_eq!(
-        ui::sentence(Verb::Use, Some("brass key"), None),
-        "Use brass key with"
-    );
-    assert_eq!(
-        ui::sentence(Verb::Use, Some("brass key"), Some("counter")),
-        "Use brass key with counter"
-    );
 }
 
 #[test]
@@ -105,7 +101,7 @@ fn inventory_slots_are_found_only_where_something_is_carried() {
 }
 
 #[test]
-fn the_slots_fit_on_screen_inside_the_strip() {
+fn the_slots_fit_on_screen_inside_the_panel() {
     for index in 0..ui::SLOT_COUNT {
         let slot = ui::slot_rect(index);
         assert!(
@@ -113,13 +109,11 @@ fn the_slots_fit_on_screen_inside_the_strip() {
             "slot {index}"
         );
         assert!(
-            slot.y >= 0.0 && slot.y + slot.h <= ui::INVENTORY_TOP,
+            slot.y >= 0.0 && slot.y + slot.h <= ui::PANEL_HEIGHT,
             "slot {index}"
         );
-        assert!(ui::in_inventory(centre(slot)));
+        assert!(ui::in_panel(centre(slot)));
     }
-    assert!(!ui::in_inventory(vec2(100.0, ui::INVENTORY_TOP)));
-    assert!(!ui::in_inventory(vec2(100.0, ui::PANEL_BOTTOM)));
 }
 
 #[test]

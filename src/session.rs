@@ -85,39 +85,10 @@ impl Session {
         ui::slot_at(point, carried.len()).map(|index| carried[index].clone())
     }
 
-    /// The name of what the cursor is over: a hotspot, or a carried item.
-    pub fn hovered_name(&self) -> Option<String> {
-        if ui::in_inventory(self.cursor) {
-            return self
-                .item_at(self.cursor)
-                .map(|id| self.items.name(&id).to_owned());
-        }
-        if ui::in_panel(self.cursor) {
-            return None;
-        }
-        self.hotspot_at(self.cursor)
-            .map(|hotspot| hotspot.name.clone())
-    }
-
-    /// The line the verb bar shows, such as "Look at counter" or "Use brass key with".
-    pub fn sentence(&self) -> String {
-        if let Some(held) = &self.holding
-            && ui::in_inventory(self.cursor)
-            && self.item_at(self.cursor).as_ref() == Some(held)
-        {
-            return format!("Use {}", self.items.name(held));
-        }
-        let held = self.holding.as_deref().map(|id| self.items.name(id));
-        let verb = if ui::in_inventory(self.cursor) {
-            carried_verb(self.verb)
-        } else {
-            self.verb
-        };
-        ui::sentence(verb, held, self.hovered_name().as_deref())
-    }
-
-    /// Choosing things (a verb, an item to use) always works, so a click is never lost while the
-    /// player is still walking or talking. Clicks that would start something wait until it is over.
+    /// A click at a screen point (see `ui`): on the panel it picks a verb or an item, above it it acts
+    /// on the room. Choosing things (a verb, an item to use) always works, so a click is never lost
+    /// while the player is still walking or talking; clicks that would start something wait until it
+    /// is over.
     pub fn click(&mut self, point: Vec2) {
         let busy = self.scripts.is_running();
         if let Some(verb) = ui::verb_at(point) {
@@ -126,9 +97,6 @@ impl Session {
             return;
         }
         if ui::in_panel(point) {
-            return;
-        }
-        if ui::in_inventory(point) {
             if let Some(item) = self.item_at(point) {
                 if !busy {
                     self.click_item(&item);
@@ -139,7 +107,7 @@ impl Session {
             return;
         }
         if !busy {
-            self.click_room(point);
+            self.click_room(ui::to_room(point));
         }
     }
 

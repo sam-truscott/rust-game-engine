@@ -1,18 +1,21 @@
 use game::session::Session;
-use game::ui::Verb;
+use game::ui::{self, PANEL_HEIGHT, Verb};
 use macroquad::math::{Vec2, vec2};
 
 const STEP: f32 = 1.0 / 30.0;
 
-const KEY: Vec2 = vec2(46.0, 39.0);
-const COUNTER: Vec2 = vec2(160.0, 70.0);
-const FLOOR: Vec2 = vec2(100.0, 85.0);
-const LOOK_AT: Vec2 = vec2(80.0, 156.0);
-const PICK_UP: Vec2 = vec2(132.0, 156.0);
-const USE: Vec2 = vec2(184.0, 156.0);
-const SLOT_0: Vec2 = vec2(16.0, 12.0);
-const SLOT_1: Vec2 = vec2(44.0, 12.0);
-const SLOT_5: Vec2 = vec2(156.0, 12.0);
+// Clicks are screen points: the room is drawn above the panel, so a room point has the panel's height
+// added to its y. The buttons and slots are inside the panel.
+const KEY: Vec2 = vec2(46.0, 39.0 + PANEL_HEIGHT);
+const COUNTER: Vec2 = vec2(160.0, 70.0 + PANEL_HEIGHT);
+const FLOOR: Vec2 = vec2(100.0, 85.0 + PANEL_HEIGHT);
+const BEHIND_THE_WINDOW: Vec2 = vec2(256.0, 72.0 + PANEL_HEIGHT);
+const LOOK_AT: Vec2 = vec2(80.0, 32.0);
+const PICK_UP: Vec2 = vec2(132.0, 32.0);
+const USE: Vec2 = vec2(184.0, 32.0);
+const SLOT_0: Vec2 = vec2(16.0, 13.0);
+const SLOT_1: Vec2 = vec2(44.0, 13.0);
+const SLOT_5: Vec2 = vec2(156.0, 13.0);
 
 fn settle(session: &mut Session) {
     for _ in 0..4000 {
@@ -66,43 +69,44 @@ fn with_the_key() -> Session {
 }
 
 #[test]
-fn hovering_names_hotspots_and_the_sentence_follows() {
+fn hotspots_are_found_by_their_room_position() {
+    let session = session();
+    let at = |point: Vec2| {
+        session
+            .hotspot_at(ui::to_room(point))
+            .map(|hotspot| hotspot.id.as_str())
+    };
+    assert_eq!(at(COUNTER), Some("counter"));
+    assert_eq!(at(KEY), Some("key"));
+    assert_eq!(at(BEHIND_THE_WINDOW), Some("window"));
+    assert_eq!(at(FLOOR), None);
+}
+
+#[test]
+fn a_click_on_the_panel_never_walks_but_one_just_above_it_does() {
     let mut session = session();
-    session.move_cursor(COUNTER);
-    assert_eq!(session.hovered_name().as_deref(), Some("counter"));
-    assert_eq!(session.sentence(), "Walk to counter");
+    click(&mut session, vec2(150.0, 20.0));
+    click(&mut session, vec2(150.0, PANEL_HEIGHT - 0.5));
+    assert!(!session.player.is_walking());
 
-    session.move_cursor(KEY);
-    assert_eq!(session.sentence(), "Walk to brass key");
-
-    session.move_cursor(FLOOR);
-    assert_eq!(session.hovered_name(), None);
-    assert_eq!(session.sentence(), "Walk to");
-
-    session.move_cursor(LOOK_AT);
-    assert_eq!(session.hovered_name(), None);
+    click(&mut session, vec2(100.0, PANEL_HEIGHT + 60.0));
+    assert!(session.player.is_walking());
 }
 
 #[test]
 fn walking_onto_an_object_walks_to_where_you_clicked_so_you_can_go_behind_it() {
     let mut session = session();
-    let behind_the_window = vec2(256.0, 72.0);
-    assert_eq!(
-        session.hotspot_at(behind_the_window).map(|h| h.id.as_str()),
-        Some("window")
-    );
-
-    click(&mut session, behind_the_window);
+    click(&mut session, BEHIND_THE_WINDOW);
     assert!(session.player.is_walking());
     finish_walking(&mut session);
-    assert_eq!(session.player.position(), behind_the_window);
+    assert_eq!(session.player.position(), ui::to_room(BEHIND_THE_WINDOW));
 }
 
 #[test]
 fn the_other_verbs_still_go_to_the_objects_standing_spot() {
     let mut session = session();
     click(&mut session, LOOK_AT);
-    click(&mut session, vec2(256.0, 72.0));
+    click(&mut session, BEHIND_THE_WINDOW);
     settle(&mut session);
     assert_eq!(session.player.position(), vec2(256.0, 40.0));
 }
@@ -190,19 +194,17 @@ fn things_that_start_something_are_still_ignored_while_a_script_runs() {
 #[test]
 fn picking_up_the_key_puts_it_in_the_inventory_and_removes_it_from_the_room() {
     let mut session = session();
-    assert!(session.hotspot_at(KEY).is_some());
+    assert!(session.hotspot_at(ui::to_room(KEY)).is_some());
 
     click(&mut session, PICK_UP);
     assert_eq!(session.verb, Verb::PickUp);
-    session.move_cursor(KEY);
-    assert_eq!(session.sentence(), "Pick up brass key");
     click(&mut session, KEY);
     assert!(session.scripts.is_running());
     settle(&mut session);
 
     assert_eq!(session.world.items(), vec!["brass_key"]);
     assert!(session.world.is_hidden("key"));
-    assert!(session.hotspot_at(KEY).is_none());
+    assert!(session.hotspot_at(ui::to_room(KEY)).is_none());
     assert_eq!(session.verb, Verb::WalkTo);
     assert_eq!(session.player.position(), vec2(46.0, 30.0));
 }
@@ -216,20 +218,9 @@ fn once_picked_up_clicking_where_the_key_was_just_walks() {
 }
 
 #[test]
-fn the_carried_item_has_a_name_and_a_slot() {
-    let mut session = with_the_key();
-    session.move_cursor(SLOT_0);
-    assert_eq!(session.hovered_name().as_deref(), Some("brass key"));
-    session.move_cursor(SLOT_1);
-    assert_eq!(session.hovered_name(), None);
-}
-
-#[test]
 fn a_plain_click_on_a_carried_item_looks_at_it() {
     let mut session = with_the_key();
-    session.move_cursor(SLOT_0);
     assert_eq!(session.verb, Verb::WalkTo);
-    assert_eq!(session.sentence(), "Look at brass key");
 
     click(&mut session, SLOT_0);
     assert_eq!(next_words(&mut session), "It must open something.");
@@ -253,13 +244,6 @@ fn the_key_opens_the_counter_drawer_and_is_swapped_for_a_coin() {
     click(&mut session, SLOT_0);
     assert_eq!(session.holding.as_deref(), Some("brass_key"));
     assert!(!session.scripts.is_running());
-    assert_eq!(session.sentence(), "Use brass key");
-
-    session.move_cursor(FLOOR);
-    assert_eq!(session.sentence(), "Use brass key with");
-
-    session.move_cursor(COUNTER);
-    assert_eq!(session.sentence(), "Use brass key with counter");
 
     click(&mut session, COUNTER);
     assert_eq!(next_words(&mut session), "The key fits the drawer!");

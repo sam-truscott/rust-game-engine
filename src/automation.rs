@@ -3,8 +3,9 @@
 //!
 //! ```text
 //! wait 3.0        game-time seconds to let pass
-//! move 160 70     put the cursor at a game position (320x180, y up), to hover
-//! click 256 72    left click at a game position (also moves the cursor there)
+//! move 160 110    put the cursor at a screen position (320x180, y up; the panel is the bottom 40
+//!                 and the room is above it, so a room point (x, y) is at (x, y + 40)), to hover
+//! click 256 112   left click at a screen position (also moves the cursor there)
 //! key r           restart (r) or toggle the walk-area overlay (f1)
 //! shot name       save <out>/name.png (1280x720)
 //! where           print the player's position and state

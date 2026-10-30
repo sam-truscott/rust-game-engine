@@ -14,7 +14,7 @@ const TEXT_SIZE: f32 = 8.0;
 const LINE_SPACING: f32 = 1.15;
 const PLAYER_SPRITE: &str = "characters/player.png";
 const CLEAR: Color = Color::new(0.1, 0.1, 0.2, 1.0);
-const PANEL_SHADE: Color = Color::new(0.0, 0.0, 0.0, 0.6);
+const PANEL_COLOR: Color = Color::new(0.06, 0.06, 0.1, 1.0);
 const SHOT_WIDTH: u32 = 1280;
 const SHOT_HEIGHT: u32 = 720;
 
@@ -40,19 +40,24 @@ impl View {
         Self::fit(screen_width(), screen_height())
     }
 
-    /// Game coordinates (y up) to window pixels.
-    fn to_screen(&self, point: Vec2) -> Vec2 {
+    /// A virtual screen point (320x180, y up, the panel at the bottom) as window pixels.
+    fn screen_to_window(&self, point: Vec2) -> Vec2 {
         vec2(
             self.offset.x + point.x * self.scale,
             self.offset.y + (VIRTUAL_HEIGHT - point.y) * self.scale,
         )
     }
 
-    /// Window pixels to game coordinates (y up).
-    fn to_game(&self, screen: Vec2) -> Vec2 {
+    /// A point in the room (y up, drawn above the panel) as window pixels.
+    fn room_to_window(&self, point: Vec2) -> Vec2 {
+        self.screen_to_window(ui::to_screen(point))
+    }
+
+    /// Window pixels as a virtual screen point.
+    fn window_to_screen(&self, window: Vec2) -> Vec2 {
         vec2(
-            (screen.x - self.offset.x) / self.scale,
-            VIRTUAL_HEIGHT - (screen.y - self.offset.y) / self.scale,
+            (window.x - self.offset.x) / self.scale,
+            VIRTUAL_HEIGHT - (window.y - self.offset.y) / self.scale,
         )
     }
 }
@@ -102,15 +107,18 @@ impl Game {
 
     /// Draws to the window, or to `output` (used for screenshots) when given.
     fn draw(&self, target: &RenderTarget, view: &View, output: Option<&RenderTarget>) {
-        set_camera(&Camera2D {
+        let camera = |top: f32| Camera2D {
             render_target: Some(target.clone()),
-            ..Camera2D::from_display_rect(Rect::new(0.0, 0.0, VIRTUAL_WIDTH, VIRTUAL_HEIGHT))
-        });
+            ..Camera2D::from_display_rect(Rect::new(0.0, top, VIRTUAL_WIDTH, VIRTUAL_HEIGHT))
+        };
+
+        // The room is drawn shifted up so that its bottom edge sits on top of the panel.
+        set_camera(&camera(ui::PANEL_HEIGHT));
         clear_background(CLEAR);
         self.renderer
             .draw(&self.session.player, &self.sprite, &self.session.world);
-        self.draw_verb_panel();
-        self.draw_inventory_panel();
+        set_camera(&camera(0.0));
+        self.draw_panel();
 
         match output {
             Some(output) => set_camera(&Camera2D {
@@ -140,7 +148,7 @@ impl Game {
             },
         );
 
-        self.draw_verb_text(view);
+        self.draw_verb_labels(view);
         self.draw_speech(view);
         if self.show_debug {
             self.draw_debug(view);
@@ -148,16 +156,19 @@ impl Game {
         set_default_camera();
     }
 
-    /// The bar's background and button boxes, drawn into the virtual screen.
-    fn draw_verb_panel(&self) {
+    /// The panel along the bottom: a box per verb and per carried item, drawn into the virtual screen.
+    /// Items are squares of their colour until there is icon art.
+    fn draw_panel(&self) {
         let session = &self.session;
+        let top = |rect: Rect| VIRTUAL_HEIGHT - (rect.y + rect.h);
         draw_rectangle(
             0.0,
-            0.0,
+            VIRTUAL_HEIGHT - ui::PANEL_HEIGHT,
             VIRTUAL_WIDTH,
-            VIRTUAL_HEIGHT - ui::PANEL_BOTTOM,
-            PANEL_SHADE,
+            ui::PANEL_HEIGHT,
+            PANEL_COLOR,
         );
+
         for verb in Verb::ALL {
             let rect = ui::button_rect(verb);
             let shade = if verb == session.verb && session.holding.is_none() {
@@ -167,26 +178,9 @@ impl Game {
             } else {
                 Color::new(1.0, 1.0, 1.0, 0.1)
             };
-            draw_rectangle(
-                rect.x,
-                VIRTUAL_HEIGHT - (rect.y + rect.h),
-                rect.w,
-                rect.h,
-                shade,
-            );
+            draw_rectangle(rect.x, top(rect), rect.w, rect.h, shade);
         }
-    }
 
-    /// The inventory strip: a box per carried item, filled with the item's colour until it has an icon.
-    fn draw_inventory_panel(&self) {
-        let session = &self.session;
-        draw_rectangle(
-            0.0,
-            VIRTUAL_HEIGHT - ui::INVENTORY_TOP,
-            VIRTUAL_WIDTH,
-            ui::INVENTORY_TOP,
-            PANEL_SHADE,
-        );
         for (index, id) in session
             .world
             .items()
@@ -195,7 +189,6 @@ impl Game {
             .enumerate()
         {
             let slot = ui::slot_rect(index);
-            let top = VIRTUAL_HEIGHT - (slot.y + slot.h);
             let shade = if session.holding.as_deref() == Some(id.as_str()) {
                 Color::new(1.0, 0.9, 0.2, 0.4)
             } else if slot.contains(session.cursor) {
@@ -203,24 +196,27 @@ impl Game {
             } else {
                 Color::new(1.0, 1.0, 1.0, 0.1)
             };
-            draw_rectangle(slot.x, top, slot.w, slot.h, shade);
+            draw_rectangle(slot.x, top(slot), slot.w, slot.h, shade);
             let color = session.items.get(id).map_or(GRAY, |item| item.color);
-            draw_rectangle(slot.x + 4.0, top + 2.0, slot.w - 8.0, slot.h - 4.0, color);
+            draw_rectangle(
+                slot.x + 4.0,
+                top(slot) + 2.0,
+                slot.w - 8.0,
+                slot.h - 4.0,
+                color,
+            );
         }
     }
 
-    /// The labels and the sentence, drawn at window resolution so they stay crisp.
-    fn draw_verb_text(&self, view: &View) {
+    /// The verb labels, drawn at window resolution so they stay crisp.
+    fn draw_verb_labels(&self, view: &View) {
         let session = &self.session;
         let size = (TEXT_SIZE * view.scale).round().max(1.0) as u16;
         let ascent = measure_text("Ag", None, size, 1.0).offset_y;
-        let centred = |text: &str, left: f32, width: f32| {
-            left + (width - measure_text(text, None, size, 1.0).width) / 2.0
-        };
 
         for verb in Verb::ALL {
             let rect = ui::button_rect(verb);
-            let corner = view.to_screen(vec2(rect.x, rect.y + rect.h));
+            let corner = view.screen_to_window(vec2(rect.x, rect.y + rect.h));
             let color = if verb == session.verb && session.holding.is_none() {
                 YELLOW
             } else if rect.contains(session.cursor) {
@@ -228,24 +224,15 @@ impl Game {
             } else {
                 LIGHTGRAY
             };
+            let width = measure_text(verb.label(), None, size, 1.0).width;
             draw_text(
                 verb.label(),
-                centred(verb.label(), corner.x, rect.w * view.scale).round(),
+                (corner.x + (rect.w * view.scale - width) / 2.0).round(),
                 (corner.y + (rect.h * view.scale + ascent) / 2.0).round(),
                 size as f32,
                 color,
             );
         }
-
-        let sentence = session.sentence();
-        let baseline = view.to_screen(vec2(0.0, ui::SENTENCE_BASELINE));
-        draw_text(
-            &sentence,
-            centred(&sentence, view.offset.x, VIRTUAL_WIDTH * view.scale).round(),
-            baseline.y.round(),
-            size as f32,
-            WHITE,
-        );
     }
 
     /// Drawn at window resolution so the text stays crisp however the virtual screen is scaled.
@@ -261,8 +248,9 @@ impl Game {
         let feet = self.session.player.position();
         let left = (feet.x - SPEECH_WRAP_WIDTH / 2.0).clamp(0.0, VIRTUAL_WIDTH - SPEECH_WRAP_WIDTH);
         let block_height = lines.len() as f32 * line_height / view.scale;
-        let top = (feet.y + FRAME_HEIGHT + 4.0 + block_height).min(ui::PANEL_BOTTOM);
-        let origin = view.to_screen(vec2(left, top));
+        let visible_top = VIRTUAL_HEIGHT - ui::PANEL_HEIGHT;
+        let top = (feet.y + FRAME_HEIGHT + 4.0 + block_height).min(visible_top);
+        let origin = view.room_to_window(vec2(left, top));
 
         for (i, line) in lines.iter().enumerate() {
             let width = measure_text(line, None, size, 1.0).width;
@@ -283,8 +271,8 @@ impl Game {
         let outline = |ring: &[Vec2], color: Color| {
             for (i, &a) in ring.iter().enumerate() {
                 let (a, b) = (
-                    view.to_screen(a),
-                    view.to_screen(ring[(i + 1) % ring.len()]),
+                    view.room_to_window(a),
+                    view.room_to_window(ring[(i + 1) % ring.len()]),
                 );
                 draw_line(a.x, a.y, b.x, b.y, 1.0, color);
             }
@@ -339,10 +327,10 @@ fn wrap_text(text: &str, max_width: f32, size: u16) -> Vec<String> {
 }
 
 fn real_inputs(view: &View) -> Inputs {
+    let cursor = view.window_to_screen(Vec2::from(mouse_position()));
     Inputs {
-        cursor: Some(view.to_game(Vec2::from(mouse_position()))),
-        click: is_mouse_button_pressed(MouseButton::Left)
-            .then(|| view.to_game(Vec2::from(mouse_position()))),
+        cursor: Some(cursor),
+        click: is_mouse_button_pressed(MouseButton::Left).then_some(cursor),
         restart: is_key_pressed(KeyCode::R),
         toggle_debug: is_key_pressed(KeyCode::F1),
     }

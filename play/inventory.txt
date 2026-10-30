@@ -1,32 +1,31 @@
 # Pick up the key, use it on the counter's drawer, look at the coin.
 # Run: target/debug/game.exe --auto play/inventory.txt --out screenshots
-# Buttons (centres): Walk to 28,156  Look at 80,156  Pick up 132,156  Use 184,156  Open 236,156  Talk to 288,156
-# Inventory slots (centres): 16,12  44,12  72,12 ...
+# Positions are screen points (320x180, y up): the room is above the 40-high panel, so a room point
+# (x, y) is clicked at (x, y + 40).
+# Verb buttons (centres): Walk to 28,32  Look at 80,32  Pick up 132,32  Use 184,32  Open 236,32  Talk to 288,32
+# Inventory slots (centres): 16,13  44,13  72,13 ...
 wait 3
-shot i1_start               # key on the floor at the left, inventory strip empty
-move 46 39
-shot i2_hover_key           # sentence: Walk to brass key
-click 132 156               # Pick up
-move 46 39
-shot i3_pickup_selected     # sentence: Pick up brass key
-click 46 39
+shot i1_start               # key on the floor at the left, inventory slots empty
+click 132 32                # Pick up
+move 46 79                  # over the key
+shot i2_pickup_selected     # Pick up highlighted
+click 46 79
 wait 5
-shot i4_picked_up           # key gone from the floor, in the first slot
+shot i3_picked_up           # key gone from the floor, in the first slot
 where                       # at (46, 30), carrying ["brass_key"]
 
-click 184 156               # Use
-click 16 12                 # the key
-shot i5_holding_key         # sentence: Use brass key; slot highlighted
-move 160 70
-shot i6_use_with_counter    # sentence: Use brass key with counter
-click 160 70
+click 184 32                # Use
+click 16 13                 # the key
+shot i4_holding_key         # Use not highlighted; the key's slot highlighted
+move 160 110
+click 160 110               # the counter
 wait 2.5
-shot i7_drawer              # "The key fits the drawer!"
+shot i5_drawer              # "The key fits the drawer!"
 wait 5
 where                       # at (160, 30), carrying ["coin"]
 
-click 80 156                # Look at
-click 16 12                 # the coin
+click 80 32                 # Look at
+click 16 13                 # the coin
 wait 1.5
-shot i8_look_at_coin        # "A silver coin. Heads, probably."
+shot i6_look_at_coin        # "A silver coin. Heads, probably."
 quit
