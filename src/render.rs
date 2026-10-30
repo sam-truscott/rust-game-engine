@@ -152,6 +152,11 @@ impl CursorSprite {
         }
     }
 
+    /// The image size in pixels.
+    pub fn size(&self) -> Vec2 {
+        vec2(self.texture.width(), self.texture.height())
+    }
+
     /// Draws the pointer with its hot spot at a window point, each pixel of the image `scale` window
     /// pixels wide.
     pub fn draw(&self, window: Vec2, scale: f32) {
@@ -161,7 +166,7 @@ impl CursorSprite {
             window.y.round(),
             WHITE,
             DrawTextureParams {
-                dest_size: Some(vec2(self.texture.width(), self.texture.height()) * scale),
+                dest_size: Some(self.size() * scale),
                 ..Default::default()
             },
         );

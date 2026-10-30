@@ -18,6 +18,8 @@ const PLAYER_SPRITE: &str = "characters/player.png";
 const CURSOR_SPRITE: &str = "cursor.png";
 /// The cursor is drawn at this fraction of the virtual screen scale, so it is smaller than the art.
 const CURSOR_SCALE: f32 = 0.5;
+/// The held item is drawn at the cursor's bottom right, half the size of its 16x16 icon in the panel.
+const HELD_ICON_SIZE: f32 = 8.0;
 const CLEAR: Color = Color::new(0.1, 0.1, 0.2, 1.0);
 const PANEL_COLOR: Color = Color::new(0.06, 0.06, 0.1, 1.0);
 const SHOT_WIDTH: u32 = 1280;
@@ -166,6 +168,7 @@ impl Game {
         if self.cursor_placed {
             let at = view.screen_to_window(self.session.cursor);
             self.cursor.draw(at, view.scale * CURSOR_SCALE);
+            self.draw_held_item(at, view);
         }
         set_default_camera();
     }
@@ -208,6 +211,27 @@ impl Game {
                 color,
             );
         }
+    }
+
+    /// A small icon of the item being used, at the bottom right of the cursor (`cursor` is its window
+    /// position). Items are squares of their colour until there is icon art.
+    fn draw_held_item(&self, cursor: Vec2, view: &View) {
+        let session = &self.session;
+        let Some(id) = &session.holding else {
+            return;
+        };
+        let color = session.items.get(id).map_or(GRAY, |item| item.color);
+        let corner = cursor + self.cursor.size() * view.scale * CURSOR_SCALE;
+        let size = HELD_ICON_SIZE * view.scale;
+        draw_rectangle(corner.x.round(), corner.y.round(), size, size, color);
+        draw_rectangle_lines(
+            corner.x.round(),
+            corner.y.round(),
+            size,
+            size,
+            view.scale * 0.5,
+            BLACK,
+        );
     }
 
     /// Drawn at window resolution so the text stays crisp however the virtual screen is scaled.
