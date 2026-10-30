@@ -12,10 +12,10 @@ fn hall_loads_with_its_background_obstacles_and_props() {
     let room = hall();
     assert_eq!(room.background(), Some("rooms/hall.png"));
     assert_eq!(room.outline().len(), 4);
-    assert_eq!(room.obstacles().len(), 2);
-    assert_eq!(room.props().len(), 3);
+    assert_eq!(room.obstacles().len(), 3);
+    assert_eq!(room.props().len(), 4);
     assert_eq!(room.props()[0].depth, room.props()[0].y);
-    assert_eq!(room.hotspots().len(), 3);
+    assert_eq!(room.hotspots().len(), 4);
 }
 
 #[test]

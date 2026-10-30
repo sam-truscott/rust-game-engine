@@ -5,6 +5,8 @@ use crate::pathfinder;
 
 const BOUNDARY_EPS: f32 = 0.01;
 const MIN_MITER_DENOMINATOR: f32 = 0.1;
+/// Frames a second for an animated prop that does not say.
+pub const DEFAULT_FPS: f32 = 8.0;
 
 #[derive(Clone, Copy, Debug)]
 pub struct Segment {
@@ -21,6 +23,10 @@ pub struct Prop {
     pub x: f32,
     pub y: f32,
     pub depth: f32,
+    /// An animated prop's image is a strip of this many equal frames side by side (1 if it is not animated).
+    pub frames: usize,
+    /// How fast `animate` plays them, when the script does not say.
+    pub fps: f32,
 }
 
 /// Something the player can act on. `rect` is in game coordinates (y up); `walk_to` is where the
@@ -124,12 +130,16 @@ impl Room {
                 let x: f32 = prop.get("x")?;
                 let y: f32 = prop.get("y")?;
                 let depth: Option<f32> = prop.get("depth")?;
+                let frames: Option<usize> = prop.get("frames")?;
+                let fps: Option<f32> = prop.get("fps")?;
                 props.push(Prop {
                     id,
                     image,
                     x,
                     y,
                     depth: depth.unwrap_or(y),
+                    frames: frames.unwrap_or(1).max(1),
+                    fps: fps.unwrap_or(DEFAULT_FPS),
                 });
             }
         }

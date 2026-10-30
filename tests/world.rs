@@ -65,3 +65,39 @@ fn an_unknown_item_is_shown_by_its_id() {
 fn an_item_without_a_name_is_an_error() {
     assert!(Items::from_lua("return { rope = { color = { 1, 1, 1 } } }", "test").is_err());
 }
+
+#[test]
+fn an_animation_steps_through_its_frames_then_stays_on_the_last() {
+    let world = World::default();
+    assert_eq!(world.frame("door"), 0);
+    world.animate("door", 0, 2, 10.0);
+    assert!(world.is_animating("door"));
+    assert_eq!(world.frame("door"), 0);
+    world.advance(0.11);
+    assert_eq!(world.frame("door"), 1);
+    world.advance(0.1);
+    assert_eq!(world.frame("door"), 2);
+    world.advance(0.1);
+    assert!(!world.is_animating("door"));
+    assert_eq!(world.frame("door"), 2);
+}
+
+#[test]
+fn an_animation_can_run_backwards() {
+    let world = World::default();
+    world.animate("door", 3, 0, 10.0);
+    world.advance(0.15);
+    assert_eq!(world.frame("door"), 2);
+    world.advance(1.0);
+    assert_eq!(world.frame("door"), 0);
+}
+
+#[test]
+fn setting_a_frame_stops_an_animation_and_other_props_are_unaffected() {
+    let world = World::default();
+    world.animate("door", 0, 3, 10.0);
+    world.set_frame("door", 1);
+    assert!(!world.is_animating("door"));
+    assert_eq!(world.frame("door"), 1);
+    assert_eq!(world.frame("lid"), 0);
+}

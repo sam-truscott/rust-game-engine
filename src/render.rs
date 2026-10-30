@@ -113,12 +113,26 @@ impl RoomRenderer {
 
         for (_, item) in items {
             match item {
-                Item::Prop(prop, texture) => draw_texture(
-                    texture,
-                    prop.x.round(),
-                    (VIRTUAL_HEIGHT - prop.y - texture.height()).round(),
-                    WHITE,
-                ),
+                Item::Prop(prop, texture) => {
+                    let width = texture.width() / prop.frames as f32;
+                    let frame = prop.id.as_deref().map_or(0, |id| world.frame(id));
+                    draw_texture_ex(
+                        texture,
+                        prop.x.round(),
+                        (VIRTUAL_HEIGHT - prop.y - texture.height()).round(),
+                        WHITE,
+                        DrawTextureParams {
+                            source: Some(Rect::new(
+                                frame.min(prop.frames - 1) as f32 * width,
+                                0.0,
+                                width,
+                                texture.height(),
+                            )),
+                            dest_size: Some(vec2(width, texture.height())),
+                            ..Default::default()
+                        },
+                    );
+                }
                 Item::Actor => sprite.draw(actor),
             }
         }

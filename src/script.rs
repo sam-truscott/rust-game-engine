@@ -8,7 +8,7 @@ use macroquad::math::Vec2;
 use mlua::{Function, Lua, Thread};
 
 use crate::actor::Actor;
-use crate::room::Room;
+use crate::room::{DEFAULT_FPS, Room};
 use crate::world::World;
 
 /// The blocking calls are plain Lua wrappers: the Rust function only records what was asked for.
@@ -16,6 +16,8 @@ const PRELUDE: &str = r#"
 function walkTo(x, y) __walk_to(x, y) coroutine.yield() end
 function say(text) __say(text) coroutine.yield() end
 function wait(seconds) __wait(seconds) coroutine.yield() end
+-- Plays frames first..last (0-based, either direction) of an animated prop, then stays on the last.
+function animate(id, first, last, fps) __animate(id, first, last, fps) coroutine.yield() end
 
 -- Scripts fill these in: hotspot.counter = { look = function() say("...") end, ... } and
 -- item.brass_key = { look = ... }. A table may also hold use_with = { other_item = function() ... end }.
@@ -73,16 +75,18 @@ enum Command {
     WalkTo(f32, f32),
     Say(String),
     Wait(f32),
+    Animate(String, usize, usize, Option<f32>),
 }
 
 enum Waiting {
     Walking,
     Speaking,
     Seconds(f32),
+    Animating(String),
 }
 
 impl Waiting {
-    fn finished(&mut self, delta_seconds: f32, actor: &Actor) -> bool {
+    fn finished(&mut self, delta_seconds: f32, actor: &Actor, world: &World) -> bool {
         match self {
             Waiting::Walking => !actor.is_walking(),
             Waiting::Speaking => !actor.is_speaking(),
@@ -90,6 +94,7 @@ impl Waiting {
                 *remaining -= delta_seconds;
                 *remaining <= 0.0
             }
+            Waiting::Animating(id) => !world.is_animating(id),
         }
     }
 }
@@ -112,7 +117,7 @@ impl ScriptRunner {
         Self::with_world(World::default())
     }
 
-    /// `give`, `take`, `has` and `hide` in scripts act on this world.
+    /// `give`, `take`, `has`, `hide` and `setFrame` in scripts act on this world.
     pub fn with_world(world: World) -> mlua::Result<Self> {
         let lua = Lua::new();
         let pending = Rc::new(RefCell::new(None));
@@ -133,7 +138,16 @@ impl ScriptRunner {
             Ok(())
         })?;
 
+        let slot = pending.clone();
+        let animate = lua.create_function(
+            move |_, (id, first, last, fps): (String, usize, usize, Option<f32>)| {
+                *slot.borrow_mut() = Some(Command::Animate(id, first, last, fps));
+                Ok(())
+            },
+        )?;
+
         let globals = lua.globals();
+        globals.set("__animate", animate)?;
         globals.set("__walk_to", walk_to)?;
         globals.set("__say", say)?;
         globals.set("__wait", wait)?;
@@ -161,6 +175,14 @@ impl ScriptRunner {
             "hide",
             lua.create_function(move |_, id: String| {
                 state.hide(&id);
+                Ok(())
+            })?,
+        )?;
+        let state = world.clone();
+        globals.set(
+            "setFrame",
+            lua.create_function(move |_, (id, frame): (String, usize)| {
+                state.set_frame(&id, frame);
                 Ok(())
             })?,
         )?;
@@ -259,11 +281,12 @@ impl ScriptRunner {
     }
 
     pub fn update(&mut self, delta_seconds: f32, room: &Room, actor: &mut Actor) {
+        self.world.advance(delta_seconds);
         let mut i = 0;
         while i < self.scripts.len() {
             let script = &mut self.scripts[i];
             if let Some(waiting) = &mut script.waiting {
-                if !waiting.finished(delta_seconds, actor) {
+                if !waiting.finished(delta_seconds, actor, &self.world) {
                     i += 1;
                     continue;
                 }
@@ -290,6 +313,16 @@ impl ScriptRunner {
                                     Waiting::Speaking
                                 }
                                 Command::Wait(seconds) => Waiting::Seconds(seconds),
+                                Command::Animate(id, first, last, fps) => {
+                                    let fps = fps.unwrap_or_else(|| {
+                                        room.props()
+                                            .iter()
+                                            .find(|prop| prop.id.as_deref() == Some(id.as_str()))
+                                            .map_or(DEFAULT_FPS, |prop| prop.fps)
+                                    });
+                                    self.world.animate(&id, first, last, fps);
+                                    Waiting::Animating(id)
+                                }
                             });
                     i += 1;
                 }

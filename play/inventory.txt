@@ -2,7 +2,7 @@
 # Run: target/debug/game.exe --auto play/inventory.txt --out screenshots
 # Positions are screen points (320x180, y up): the room is above the 40-high panel, so a room point
 # (x, y) is clicked at (x, y + 40).
-# Verb buttons (centres): Walk to 28,32  Look at 80,32  Pick up 132,32  Use 184,32  Open 236,32  Talk to 288,32
+# Verb buttons (centres): Walk to 28,32  Look at 80,32  Pick up 132,32  Use 184,32  Talk to 236,32
 # Inventory slots (centres): 16,13  44,13  72,13 ...
 wait 3
 shot i1_start               # key on the floor at the left, inventory slots empty

@@ -28,17 +28,15 @@ pub enum Verb {
     LookAt,
     PickUp,
     Use,
-    Open,
     TalkTo,
 }
 
 impl Verb {
-    pub const ALL: [Verb; 6] = [
+    pub const ALL: [Verb; 5] = [
         Verb::WalkTo,
         Verb::LookAt,
         Verb::PickUp,
         Verb::Use,
-        Verb::Open,
         Verb::TalkTo,
     ];
 
@@ -48,7 +46,6 @@ impl Verb {
             Verb::LookAt => "Look at",
             Verb::PickUp => "Pick up",
             Verb::Use => "Use",
-            Verb::Open => "Open",
             Verb::TalkTo => "Talk to",
         }
     }
@@ -60,7 +57,6 @@ impl Verb {
             Verb::LookAt => "look",
             Verb::PickUp => "pickup",
             Verb::Use => "use",
-            Verb::Open => "open",
             Verb::TalkTo => "talk",
         }
     }

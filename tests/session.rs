@@ -8,7 +8,7 @@ const STEP: f32 = 1.0 / 30.0;
 // added to its y. The buttons and slots are inside the panel.
 const KEY: Vec2 = vec2(46.0, 39.0 + PANEL_HEIGHT);
 const COUNTER: Vec2 = vec2(160.0, 70.0 + PANEL_HEIGHT);
-const FLOOR: Vec2 = vec2(100.0, 85.0 + PANEL_HEIGHT);
+const FLOOR: Vec2 = vec2(110.0, 85.0 + PANEL_HEIGHT);
 const BEHIND_THE_WINDOW: Vec2 = vec2(256.0, 72.0 + PANEL_HEIGHT);
 const LOOK_AT: Vec2 = vec2(80.0, 32.0);
 const PICK_UP: Vec2 = vec2(132.0, 32.0);
@@ -323,4 +323,16 @@ fn using_the_wrong_item_on_a_hotspot_does_not_work() {
     assert_eq!(next_words(&mut session), "That doesn't work.");
     settle(&mut session);
     assert_eq!(session.world.items(), vec!["brass_key", "coin"]);
+}
+
+#[test]
+fn using_the_cupboard_plays_the_door_and_using_it_again_closes_it() {
+    let mut session = session();
+    let cupboard = vec2(86.0, 76.0 + PANEL_HEIGHT);
+    for expected in [3, 0] {
+        click(&mut session, USE);
+        click(&mut session, cupboard);
+        settle(&mut session);
+        assert_eq!(session.world.frame("cupboard"), expected);
+    }
 }

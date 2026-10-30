@@ -5,16 +5,17 @@ use macroquad::math::vec2;
 
 const DELTA: f32 = 0.05;
 
+fn floor_outline() -> Vec<macroquad::math::Vec2> {
+    vec![
+        vec2(0.0, 0.0),
+        vec2(200.0, 0.0),
+        vec2(200.0, 100.0),
+        vec2(0.0, 100.0),
+    ]
+}
+
 fn floor() -> Room {
-    Room::new(
-        vec![
-            vec2(0.0, 0.0),
-            vec2(200.0, 0.0),
-            vec2(200.0, 100.0),
-            vec2(0.0, 100.0),
-        ],
-        vec![],
-    )
+    Room::new(floor_outline(), vec![])
 }
 
 fn step(runner: &mut ScriptRunner, room: &Room, actor: &mut Actor) {
@@ -229,4 +230,59 @@ fn syntax_error_is_reported_when_starting() {
     let mut runner = ScriptRunner::new().unwrap();
     assert!(runner.start("broken", "walkTo(").is_err());
     assert!(!runner.is_running());
+}
+
+#[test]
+fn animate_blocks_the_script_until_the_frames_have_played() {
+    let room = floor();
+    let mut actor = Actor::new(10.0, 50.0);
+    let world = game::world::World::default();
+    let mut runner = ScriptRunner::with_world(world.clone()).unwrap();
+    runner
+        .start("test", "animate('door', 0, 3, 10) setFrame('lid', 2)")
+        .unwrap();
+
+    step(&mut runner, &room, &mut actor);
+    assert!(world.is_animating("door"));
+    assert_eq!(world.frame("lid"), 0);
+    for _ in 0..30 {
+        step(&mut runner, &room, &mut actor);
+    }
+    assert!(!runner.is_running());
+    assert_eq!(world.frame("door"), 3);
+    assert_eq!(world.frame("lid"), 2);
+}
+
+#[test]
+fn animate_uses_the_props_fps_from_the_room_unless_given() {
+    use game::room::Prop;
+    let room = Room::with_options(
+        floor_outline(),
+        vec![],
+        0.0,
+        None,
+        vec![Prop {
+            id: Some("door".into()),
+            image: "x.png".into(),
+            x: 0.0,
+            y: 0.0,
+            depth: 0.0,
+            frames: 4,
+            fps: 2.0,
+        }],
+    );
+    let mut actor = Actor::new(10.0, 50.0);
+    let world = game::world::World::default();
+    let mut runner = ScriptRunner::with_world(world.clone()).unwrap();
+    runner.start("test", "animate('door', 0, 3)").unwrap();
+    step(&mut runner, &room, &mut actor);
+    // 4 frames at 2 fps take 2 seconds
+    for _ in 0..30 {
+        step(&mut runner, &room, &mut actor);
+    }
+    assert!(world.is_animating("door"));
+    for _ in 0..20 {
+        step(&mut runner, &room, &mut actor);
+    }
+    assert!(!world.is_animating("door"));
 }
