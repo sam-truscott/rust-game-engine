@@ -192,7 +192,7 @@ impl Session {
     /// there is nothing; a double click interacts with it. The single click has already started
     /// looking by the time the second arrives, so that is cancelled in favour of interacting.
     ///
-    /// Every click is ignored while an action (using an item, interacting) runs. Other clicks that
+    /// While an action (using an item, interacting) runs a click only skips the current speech line. Other clicks that
     /// would start something are ignored while a script is running, except the second
     /// click of a double click. With an item held (picked by double clicking it) the next click uses
     /// it on what is under it; that is never cut short, as a half-finished script could lose items.
@@ -201,6 +201,8 @@ impl Session {
             self.committed = false;
         }
         if self.input_locked() {
+            // A click skips the line being spoken; the script then goes on to its next line or ends.
+            self.player.stop_speaking();
             return;
         }
         let holding = self.holding.is_some();
