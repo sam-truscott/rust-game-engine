@@ -6,7 +6,7 @@ use std::path::Path;
 use automation::{Automation, FIXED_DELTA, Frame, Inputs};
 use game::session::Session;
 use game::ui;
-use game::ui::{SCREEN_HEIGHT, SCREEN_WIDTH};
+use game::ui::{RENDER_SCALE, SCREEN_HEIGHT, SCREEN_WIDTH};
 use macroquad::prelude::*;
 use render::{CharacterSprite, CursorSprite, FRAME_HEIGHT, RoomRenderer};
 
@@ -255,6 +255,31 @@ impl Game {
         let top = (feet.y + FRAME_HEIGHT + 4.0 + block_height).min(visible_top);
         let origin = view.room_to_window(vec2(left, top));
 
+        let pad = 3.0 * view.scale;
+        let widest = lines
+            .iter()
+            .map(|line| measure_text(line, None, size, 1.0).width)
+            .fold(0.0_f32, f32::max);
+        let box_x = origin.x + (SPEECH_WRAP_WIDTH * view.scale - widest) / 2.0 - pad;
+        let box_w = widest + pad * 2.0;
+        let box_h = lines.len() as f32 * line_height + pad * 2.0 - (line_height - size as f32);
+        let box_y = origin.y - pad;
+        let border = view.scale.round().max(1.0);
+        draw_rectangle(
+            (box_x - border).round(),
+            (box_y - border).round(),
+            (box_w + border * 2.0).round(),
+            (box_h + border * 2.0).round(),
+            Color::new(0.95, 0.9, 0.7, 1.0),
+        );
+        draw_rectangle(
+            box_x.round(),
+            box_y.round(),
+            box_w.round(),
+            box_h.round(),
+            Color::new(0.06, 0.05, 0.1, 0.92),
+        );
+
         for (i, line) in lines.iter().enumerate() {
             let width = measure_text(line, None, size, 1.0).width;
             let x = origin.x + (SPEECH_WRAP_WIDTH * view.scale - width) / 2.0;
@@ -396,7 +421,10 @@ async fn main() {
         })
     });
 
-    let target = render_target(SCREEN_WIDTH as u32, SCREEN_HEIGHT as u32);
+    let target = render_target(
+        SCREEN_WIDTH as u32 * RENDER_SCALE,
+        SCREEN_HEIGHT as u32 * RENDER_SCALE,
+    );
     target.texture.set_filter(FilterMode::Nearest);
     let screenshot_target = automation
         .is_some()

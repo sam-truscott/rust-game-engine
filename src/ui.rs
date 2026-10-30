@@ -7,6 +7,9 @@ use macroquad::math::{Rect, Vec2, vec2};
 
 pub const SCREEN_WIDTH: f32 = 320.0;
 pub const SCREEN_HEIGHT: f32 = 180.0;
+/// The room is drawn into a target this many times larger than the virtual screen, so art can be
+/// finer than one game unit per pixel.
+pub const RENDER_SCALE: u32 = 4;
 
 /// The panel fills the screen below this y; clicks there never walk the player.
 pub const PANEL_HEIGHT: f32 = 26.0;

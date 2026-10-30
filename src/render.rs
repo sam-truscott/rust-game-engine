@@ -2,7 +2,7 @@ use game::actor::Actor;
 use game::assets;
 use game::direction::Direction;
 use game::room::{Prop, Room};
-use game::ui::{SCREEN_HEIGHT, SCREEN_WIDTH};
+use game::ui::{RENDER_SCALE, SCREEN_HEIGHT, SCREEN_WIDTH};
 use game::world::World;
 use macroquad::prelude::*;
 
@@ -10,6 +10,9 @@ pub const FRAME_WIDTH: f32 = 16.0;
 pub const FRAME_HEIGHT: f32 = 32.0;
 
 const WALK_FRAMES: usize = 6;
+/// Sheet columns: idle, then the walk cycle; rows: front, back, side.
+const SHEET_COLUMNS: f32 = (WALK_FRAMES + 1) as f32;
+const SHEET_ROWS: f32 = 3.0;
 const DISTANCE_PER_FRAME: f32 = 5.0;
 /// What covers an unlit room; almost opaque.
 const DARKNESS: Color = Color::new(0.0, 0.0, 0.0, 0.99);
@@ -52,6 +55,11 @@ impl CharacterSprite {
             0
         };
 
+        // The sheet may be drawn at any multiple of the game's resolution; frames are cut by count.
+        let frame = vec2(
+            self.texture.width() / SHEET_COLUMNS,
+            self.texture.height() / SHEET_ROWS,
+        );
         let position = actor.position();
         blit(
             &self.texture,
@@ -60,11 +68,12 @@ impl CharacterSprite {
                 SCREEN_HEIGHT - position.y - FRAME_HEIGHT,
             ),
             Rect::new(
-                column as f32 * FRAME_WIDTH,
-                row as f32 * FRAME_HEIGHT,
-                FRAME_WIDTH,
-                FRAME_HEIGHT,
+                column as f32 * frame.x,
+                row as f32 * frame.y,
+                frame.x,
+                frame.y,
             ),
+            vec2(FRAME_WIDTH, FRAME_HEIGHT),
             facing == Direction::Left,
         );
     }
@@ -98,7 +107,16 @@ impl RoomRenderer {
     /// the glowing props, which are drawn over it.
     pub fn draw(&self, actor: &Actor, sprite: &CharacterSprite, world: &World, dark: bool) {
         if let Some(background) = &self.background {
-            draw_texture(background, 0.0, 0.0, WHITE);
+            draw_texture_ex(
+                background,
+                0.0,
+                0.0,
+                WHITE,
+                DrawTextureParams {
+                    dest_size: Some(vec2(SCREEN_WIDTH, SCREEN_HEIGHT)),
+                    ..Default::default()
+                },
+            );
         }
 
         let shown = |prop: &Prop| !prop.id.as_deref().is_some_and(|id| world.is_hidden(id));
@@ -131,16 +149,18 @@ impl RoomRenderer {
     }
 }
 
-/// Draws `source`, a pixel rectangle of the texture, with its top-left at `at` (rounded to whole pixels).
-fn blit(texture: &Texture2D, at: Vec2, source: Rect, flip_x: bool) {
+/// Draws `source`, a pixel rectangle of the texture, `size` game units large with its top-left at `at`
+/// (rounded to whole pixels of the render target).
+fn blit(texture: &Texture2D, at: Vec2, source: Rect, size: Vec2, flip_x: bool) {
+    let snap = |value: f32| (value * RENDER_SCALE as f32).round() / RENDER_SCALE as f32;
     draw_texture_ex(
         texture,
-        at.x.round(),
-        at.y.round(),
+        snap(at.x),
+        snap(at.y),
         WHITE,
         DrawTextureParams {
             source: Some(source),
-            dest_size: Some(source.size()),
+            dest_size: Some(size),
             flip_x,
             ..Default::default()
         },
@@ -152,13 +172,17 @@ fn draw_prop(prop: &Prop, texture: &Texture2D, world: &World) {
     let frame = prop.id.as_deref().map_or(0, |id| world.frame(id));
     blit(
         texture,
-        vec2(prop.x, SCREEN_HEIGHT - prop.y - texture.height()),
+        vec2(
+            prop.x,
+            SCREEN_HEIGHT - prop.y - texture.height() / prop.scale,
+        ),
         Rect::new(
             frame.min(prop.frames - 1) as f32 * width,
             0.0,
             width,
             texture.height(),
         ),
+        vec2(width, texture.height()) / prop.scale,
         false,
     );
 }
@@ -176,7 +200,7 @@ impl CursorSprite {
         }
     }
 
-    /// The image size in pixels.
+    /// The image size in game units (one image pixel per unit).
     pub fn size(&self) -> Vec2 {
         vec2(self.texture.width(), self.texture.height())
     }

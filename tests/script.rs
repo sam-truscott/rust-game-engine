@@ -235,6 +235,7 @@ fn animate_uses_the_props_fps_from_the_room_unless_given() {
             frames: 4,
             fps: 2.0,
             glow: false,
+            scale: 1.0,
         }],
     );
     let mut actor = Actor::new(10.0, 50.0);

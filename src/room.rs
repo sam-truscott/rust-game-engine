@@ -29,6 +29,9 @@ pub struct Prop {
     pub fps: f32,
     /// Drawn above the darkness of an unlit room, so it can still be seen (a light switch).
     pub glow: bool,
+    /// Image pixels per game unit: 1 for art drawn at the game's own resolution, 4 for art drawn at
+    /// four times it (drawn smaller, so it looks finer).
+    pub scale: f32,
 }
 
 /// Something the player can act on. `rect` is in game coordinates (y up); `walk_to` is where the
@@ -132,6 +135,10 @@ impl Room {
                 frames: prop.get::<Option<usize>>("frames")?.unwrap_or(1).max(1),
                 fps: prop.get::<Option<f32>>("fps")?.unwrap_or(DEFAULT_FPS),
                 glow: prop.get::<Option<bool>>("glow")?.unwrap_or(false),
+                scale: prop
+                    .get::<Option<f32>>("scale")?
+                    .filter(|scale| scale.is_finite() && *scale > 0.0)
+                    .unwrap_or(1.0),
             })
         })?;
         let hotspots = list(&table, "hotspots", |hotspot| {
