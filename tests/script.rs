@@ -234,6 +234,7 @@ fn animate_uses_the_props_fps_from_the_room_unless_given() {
             depth: 0.0,
             frames: 4,
             fps: 2.0,
+            idle: 0,
             glow: false,
             scale: 1.0,
         }],

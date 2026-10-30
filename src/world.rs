@@ -9,6 +9,7 @@ struct Data {
     frames: HashMap<String, usize>,
     animations: HashMap<String, Animation>,
     lit: HashSet<String>,
+    clock: f64,
 }
 
 /// Frames `first` to `last` (either direction) shown one after another, each for 1/fps seconds.
@@ -123,6 +124,24 @@ impl World {
         data.animations.insert(id.to_owned(), animation);
     }
 
+    /// Hands an animated prop back to its idle loop (see `Prop::idle`), dropping the frame it was left on.
+    pub fn resume(&self, id: &str) {
+        let mut data = self.0.borrow_mut();
+        data.animations.remove(id);
+        data.frames.remove(id);
+    }
+
+    /// The frame of a prop that loops its first `count` frames at `fps` (`phase` seconds ahead) while
+    /// no script is playing or has set a frame for it; otherwise what `frame` says.
+    pub fn idle_frame(&self, id: &str, count: usize, fps: f32, phase: f32) -> usize {
+        let data = self.0.borrow();
+        if count == 0 || data.animations.contains_key(id) || data.frames.contains_key(id) {
+            drop(data);
+            return self.frame(id);
+        }
+        (((data.clock + phase as f64) * fps as f64) as usize) % count
+    }
+
     pub fn is_animating(&self, id: &str) -> bool {
         self.0.borrow().animations.contains_key(id)
     }
@@ -130,6 +149,7 @@ impl World {
     /// Moves animations on; one that has shown its last frame ends.
     pub fn advance(&self, delta_seconds: f32) {
         let mut data = self.0.borrow_mut();
+        data.clock += delta_seconds as f64;
         for animation in data.animations.values_mut() {
             animation.elapsed += delta_seconds;
         }

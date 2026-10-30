@@ -585,3 +585,44 @@ fn double_clicking_a_target_with_an_item_held_uses_the_item_without_cutting_it_s
 
     assert_eq!(session.world.items(), vec!["coin"]);
 }
+
+#[test]
+fn the_barman_trades_the_silver_coin_for_a_beer_and_goes_back_to_cleaning() {
+    let mut session = session();
+    session.world.give("coin");
+    double_click(&mut session, SLOT_0);
+    click(&mut session, point("hall", "barman"));
+    settle(&mut session);
+
+    assert_eq!(session.world.items(), vec!["beer"]);
+    assert!(!session.world.is_animating("barman"));
+    // back on the idle loop, which only ever shows the cleaning frames
+    for _ in 0..200 {
+        session.update(STEP);
+        assert!(session.world.idle_frame("barman", 6, 4.0, 0.0) < 6);
+    }
+}
+
+#[test]
+fn the_barman_wants_paying_and_only_serves_once() {
+    let mut session = session();
+    double_click(&mut session, point("hall", "barman"));
+    settle(&mut session);
+    assert!(session.world.items().is_empty());
+
+    session.world.give("coin");
+    double_click(&mut session, SLOT_0);
+    click(&mut session, point("hall", "barman"));
+    settle(&mut session);
+    double_click(&mut session, point("hall", "barman"));
+    assert_eq!(next_words(&mut session), "One's plenty for now.");
+}
+
+#[test]
+fn the_other_patrons_can_be_looked_at() {
+    for id in ["drinker", "patron_left", "patron_right"] {
+        let mut session = session();
+        click(&mut session, point("hall", id));
+        assert_ne!(next_words(&mut session), "I see nothing special.", "{id}");
+    }
+}

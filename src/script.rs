@@ -235,6 +235,10 @@ impl ScriptRunner {
                 Ok(())
             }
         );
+        bind!(lua, globals, world, "resume", |w, id: String| {
+            w.resume(&id);
+            Ok(())
+        });
         lua.load(PRELUDE).set_name("prelude").exec()?;
 
         Ok(ScriptRunner {

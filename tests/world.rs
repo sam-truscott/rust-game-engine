@@ -135,3 +135,25 @@ fn lights_are_per_room() {
     world.set_light("closet", false);
     assert!(!world.is_lit("closet"));
 }
+
+#[test]
+fn an_idle_prop_loops_its_frames_until_a_script_takes_over_and_then_resumes() {
+    let world = World::default();
+    assert_eq!(world.idle_frame("barman", 4, 2.0, 0.0), 0);
+    world.advance(0.5);
+    assert_eq!(world.idle_frame("barman", 4, 2.0, 0.0), 1);
+    world.advance(1.5);
+    assert_eq!(world.idle_frame("barman", 4, 2.0, 0.0), 0, "wraps round");
+
+    world.set_frame("barman", 7);
+    world.advance(0.5);
+    assert_eq!(world.idle_frame("barman", 4, 2.0, 0.0), 7);
+
+    world.resume("barman");
+    assert_eq!(world.idle_frame("barman", 4, 2.0, 0.0), 1);
+    assert_eq!(
+        world.idle_frame("barman", 0, 2.0, 0.0),
+        0,
+        "idle 0 never loops"
+    );
+}

@@ -169,7 +169,9 @@ fn blit(texture: &Texture2D, at: Vec2, source: Rect, size: Vec2, flip_x: bool) {
 
 fn draw_prop(prop: &Prop, texture: &Texture2D, world: &World) {
     let width = texture.width() / prop.frames as f32;
-    let frame = prop.id.as_deref().map_or(0, |id| world.frame(id));
+    let frame = prop.id.as_deref().map_or(0, |id| {
+        world.idle_frame(id, prop.idle, prop.fps, prop.x * 0.37)
+    });
     blit(
         texture,
         vec2(

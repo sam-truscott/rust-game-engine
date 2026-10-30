@@ -27,6 +27,8 @@ pub struct Prop {
     pub frames: usize,
     /// How fast `animate` plays them, when the script does not say.
     pub fps: f32,
+    /// Loops this many leading frames for ever while no script is animating the prop (0: stays on frame 0).
+    pub idle: usize,
     /// Drawn above the darkness of an unlit room, so it can still be seen (a light switch).
     pub glow: bool,
     /// Image pixels per game unit: 1 for art drawn at the game's own resolution, 4 for art drawn at
@@ -134,6 +136,7 @@ impl Room {
                 depth: prop.get::<Option<f32>>("depth")?.unwrap_or(y),
                 frames: prop.get::<Option<usize>>("frames")?.unwrap_or(1).max(1),
                 fps: prop.get::<Option<f32>>("fps")?.unwrap_or(DEFAULT_FPS),
+                idle: prop.get::<Option<usize>>("idle")?.unwrap_or(0),
                 glow: prop.get::<Option<bool>>("glow")?.unwrap_or(false),
                 scale: prop
                     .get::<Option<f32>>("scale")?

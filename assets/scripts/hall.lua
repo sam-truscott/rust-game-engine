@@ -50,3 +50,50 @@ item.brass_key = {
 item.coin = {
   look = function() say("A silver coin. Heads, probably.") end,
 }
+
+local served = false
+
+hotspot.barman = {
+  look = function() say("The barman polishes a glass. Probably the same one as an hour ago.") end,
+  interact = function()
+    if served then
+      say("One's plenty for now.")
+    else
+      say("A beer, please.")
+      wait(0.4)
+      say("He eyes me and keeps polishing. I think he wants paying.")
+    end
+  end,
+  use_with = {
+    coin = function()
+      take("coin")
+      say("One beer, please.")
+      animate("barman", 6, 7, 3)     -- takes the coin and pockets it
+      animate("barman", 8, 9, 3)     -- pours
+      animate("barman", 10, 11, 3)   -- slides the pint over
+      give("beer")
+      resume("barman")
+      served = true
+      say("Cheers.")
+    end,
+  },
+}
+
+hotspot.drinker = {
+  look = function() say("He's propping up the end of the bar, and it's propping him up.") end,
+  interact = function() say("He's not in a talking mood.") end,
+}
+
+hotspot.patron_left = {
+  look = function() say("He's nursing a pint like it owes him money.") end,
+  interact = function() say("He doesn't look up.") end,
+}
+
+hotspot.patron_right = {
+  look = function() say("A man in a hat, smoking and keeping his own counsel.") end,
+  interact = function() say("He blows smoke at the ceiling.") end,
+}
+
+item.beer = {
+  look = function() say("A cold pint. Better than the key, anyway.") end,
+}
