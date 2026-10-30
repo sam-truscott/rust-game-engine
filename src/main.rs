@@ -116,6 +116,9 @@ impl Game {
             self.session.click(point);
         }
         self.session.update(delta);
+        if self.session.take_room_changed() {
+            self.renderer = RoomRenderer::new(&self.session.room);
+        }
     }
 
     /// Draws to the window, or to `output` (used for screenshots) when given.
@@ -128,8 +131,12 @@ impl Game {
         // The room is drawn shifted up so that its bottom edge sits on top of the panel.
         set_camera(&camera(ui::PANEL_HEIGHT));
         clear_background(CLEAR);
-        self.renderer
-            .draw(&self.session.player, &self.sprite, &self.session.world);
+        self.renderer.draw(
+            &self.session.player,
+            &self.sprite,
+            &self.session.world,
+            self.session.is_dark(),
+        );
         set_camera(&camera(0.0));
         self.draw_panel();
 
@@ -290,7 +297,8 @@ impl Game {
         let session = &self.session;
         let position = session.player.position();
         println!(
-            "[state] player at ({:.1}, {:.1}) facing {:?} holding={:?} carrying={:?} walking={} speaking={} scripts_running={}",
+            "[state] room={} player at ({:.1}, {:.1}) facing {:?} holding={:?} carrying={:?} walking={} speaking={} scripts_running={}",
+            session.room_id,
             position.x,
             position.y,
             session.player.facing(),

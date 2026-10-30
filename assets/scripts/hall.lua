@@ -44,20 +44,11 @@ hotspot.cupboard = {
   },
 }
 
-local door_open = false
-
--- There is no "Close", so interacting with an open door closes it.
 hotspot.door = {
-  look = function() say("The door to the back room.") end,
+  look = function() say("The door to the cupboard.") end,
   interact = function()
-    if door_open then
-      animate("door", 3, 0)
-      door_open = false
-    else
-      animate("door", 0, 3)
-      door_open = true
-      say("Nothing in there but a dark corridor.")
-    end
+    animate("door", 0, 3)
+    enterRoom("closet", 182, 28)
   end,
 }
 

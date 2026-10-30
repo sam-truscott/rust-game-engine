@@ -10,8 +10,9 @@ use crate::script::ScriptRunner;
 use crate::ui;
 use crate::world::World;
 
-const START_ROOM: &str = "rooms/hall.lua";
-const ROOM_SCRIPT: &str = "scripts/hall.lua";
+/// Rooms are `rooms/<id>.lua` with their handlers in `scripts/<id>.lua`; scripts name them by id.
+const ROOMS: [&str; 2] = ["hall", "closet"];
+const START_ROOM: &str = "hall";
 const INTRO_SCRIPT: &str = "scripts/intro.lua";
 const ITEMS: &str = "items.lua";
 const START_POSITION: Vec2 = Vec2::new(30.0, 50.0);
@@ -22,8 +23,16 @@ const INTERACT: &str = "interact";
 const DOUBLE_CLICK_SECONDS: f32 = 0.4;
 const DOUBLE_CLICK_DISTANCE: f32 = 4.0;
 
+fn load_room(id: &str) -> Result<Room, String> {
+    let path = format!("rooms/{id}.lua");
+    let source = assets::text(&path).ok_or_else(|| format!("missing {path}"))?;
+    Room::from_lua(&source, &path).map_err(|error| format!("{path}: {error}"))
+}
+
 pub struct Session {
     pub room: Room,
+    /// The current room's id, such as "hall".
+    pub room_id: String,
     pub player: Actor,
     pub scripts: ScriptRunner,
     pub world: World,
@@ -33,24 +42,32 @@ pub struct Session {
     pub cursor: Vec2,
     clock: f32,
     last_click: Option<(f32, Vec2)>,
+    room_changed: bool,
 }
 
 impl Session {
-    /// Loads the first room, its scripts and the items, and starts the intro.
+    /// Loads every room's script and the items, and starts the intro in the first room.
     pub fn load() -> Result<Self, String> {
         let text = |path: &str| assets::text(path).ok_or_else(|| format!("missing {path}"));
         let failed = |path: &str, error: mlua::Error| format!("{path}: {error}");
 
-        let room = Room::from_lua(&text(START_ROOM)?, START_ROOM)
-            .map_err(|error| failed(START_ROOM, error))?;
+        let room = load_room(START_ROOM)?;
         let items = Items::from_lua(&text(ITEMS)?, ITEMS).map_err(|error| failed(ITEMS, error))?;
 
         let world = World::default();
         let mut scripts =
             ScriptRunner::with_world(world.clone()).map_err(|error| failed("Lua", error))?;
+        for id in ROOMS {
+            let path = format!("scripts/{id}.lua");
+            let source = text(&path)?;
+            scripts
+                .set_room(id)
+                .and_then(|()| scripts.load_definitions(&path, &source))
+                .map_err(|error| failed(&path, error))?;
+        }
         scripts
-            .load_definitions(ROOM_SCRIPT, &text(ROOM_SCRIPT)?)
-            .map_err(|error| failed(ROOM_SCRIPT, error))?;
+            .set_room(START_ROOM)
+            .map_err(|error| failed("Lua", error))?;
         scripts
             .start(INTRO_SCRIPT, &text(INTRO_SCRIPT)?)
             .map_err(|error| failed(INTRO_SCRIPT, error))?;
@@ -58,6 +75,7 @@ impl Session {
         let start = room.constrain(START_POSITION.x, START_POSITION.y);
         Ok(Session {
             room,
+            room_id: START_ROOM.to_owned(),
             player: Actor::new(start.x, start.y),
             scripts,
             world,
@@ -66,7 +84,37 @@ impl Session {
             cursor: Vec2::ZERO,
             clock: 0.0,
             last_click: None,
+            room_changed: false,
         })
+    }
+
+    /// Whether the room is drawn dark: it is a dark room and its lights are off.
+    pub fn is_dark(&self) -> bool {
+        self.room.is_dark() && !self.world.is_lit(&self.room_id)
+    }
+
+    /// True once after the room has changed, so the drawing can load the new room's images.
+    pub fn take_room_changed(&mut self) -> bool {
+        std::mem::take(&mut self.room_changed)
+    }
+
+    fn enter_room(&mut self, id: &str, x: f32, y: f32) {
+        let result = load_room(id).and_then(|room| {
+            self.scripts
+                .set_room(id)
+                .map_err(|error| format!("{id}: {error}"))?;
+            Ok(room)
+        });
+        match result {
+            Ok(room) => {
+                let spot = room.constrain(x, y);
+                self.room = room;
+                self.room_id = id.to_owned();
+                self.player = Actor::new(spot.x, spot.y);
+                self.room_changed = true;
+            }
+            Err(error) => eprintln!("[room] {error}"),
+        }
     }
 
     pub fn update(&mut self, delta_seconds: f32) {
@@ -74,6 +122,9 @@ impl Session {
         self.player.update(delta_seconds);
         self.scripts
             .update(delta_seconds, &self.room, &mut self.player);
+        if let Some(change) = self.scripts.take_room_change() {
+            self.enter_room(&change.room, change.x, change.y);
+        }
     }
 
     pub fn move_cursor(&mut self, point: Vec2) {

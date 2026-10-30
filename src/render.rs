@@ -12,6 +12,8 @@ pub const FRAME_HEIGHT: f32 = 32.0;
 
 const WALK_FRAMES: usize = 6;
 const DISTANCE_PER_FRAME: f32 = 5.0;
+/// What covers an unlit room; almost opaque.
+const DARKNESS: Color = Color::new(0.0, 0.0, 0.0, 0.99);
 
 fn load_texture(path: &str) -> Texture2D {
     let bytes = assets::bytes(path).unwrap_or_else(|| panic!("missing asset {path}"));
@@ -96,8 +98,9 @@ impl RoomRenderer {
     }
 
     /// Items with a larger depth are further back and drawn first; ties draw the actor last.
-    /// Props a script has hidden are skipped.
-    pub fn draw(&self, actor: &Actor, sprite: &CharacterSprite, world: &World) {
+    /// Props a script has hidden are skipped. In a dark room everything is covered by darkness except
+    /// the glowing props, which are drawn over it.
+    pub fn draw(&self, actor: &Actor, sprite: &CharacterSprite, world: &World, dark: bool) {
         if let Some(background) = &self.background {
             draw_texture(background, 0.0, 0.0, WHITE);
         }
@@ -106,6 +109,7 @@ impl RoomRenderer {
             .props
             .iter()
             .filter(|(prop, _)| !prop.id.as_deref().is_some_and(|id| world.is_hidden(id)))
+            .filter(|(prop, _)| !(dark && prop.glow))
             .map(|(prop, texture)| (prop.depth, Item::Prop(prop, texture)))
             .collect();
         items.push((actor.position().y, Item::Actor));
@@ -113,30 +117,41 @@ impl RoomRenderer {
 
         for (_, item) in items {
             match item {
-                Item::Prop(prop, texture) => {
-                    let width = texture.width() / prop.frames as f32;
-                    let frame = prop.id.as_deref().map_or(0, |id| world.frame(id));
-                    draw_texture_ex(
-                        texture,
-                        prop.x.round(),
-                        (VIRTUAL_HEIGHT - prop.y - texture.height()).round(),
-                        WHITE,
-                        DrawTextureParams {
-                            source: Some(Rect::new(
-                                frame.min(prop.frames - 1) as f32 * width,
-                                0.0,
-                                width,
-                                texture.height(),
-                            )),
-                            dest_size: Some(vec2(width, texture.height())),
-                            ..Default::default()
-                        },
-                    );
-                }
+                Item::Prop(prop, texture) => draw_prop(prop, texture, world),
                 Item::Actor => sprite.draw(actor),
             }
         }
+
+        if dark {
+            draw_rectangle(0.0, 0.0, VIRTUAL_WIDTH, VIRTUAL_HEIGHT, DARKNESS);
+            for (prop, texture) in self.props.iter().filter(|(prop, _)| prop.glow) {
+                if !prop.id.as_deref().is_some_and(|id| world.is_hidden(id)) {
+                    draw_prop(prop, texture, world);
+                }
+            }
+        }
     }
+}
+
+fn draw_prop(prop: &Prop, texture: &Texture2D, world: &World) {
+    let width = texture.width() / prop.frames as f32;
+    let frame = prop.id.as_deref().map_or(0, |id| world.frame(id));
+    draw_texture_ex(
+        texture,
+        prop.x.round(),
+        (VIRTUAL_HEIGHT - prop.y - texture.height()).round(),
+        WHITE,
+        DrawTextureParams {
+            source: Some(Rect::new(
+                frame.min(prop.frames - 1) as f32 * width,
+                0.0,
+                width,
+                texture.height(),
+            )),
+            dest_size: Some(vec2(width, texture.height())),
+            ..Default::default()
+        },
+    );
 }
 
 /// The mouse pointer, drawn at window resolution by `main.rs` in place of the system cursor. The

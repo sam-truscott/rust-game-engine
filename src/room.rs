@@ -27,6 +27,8 @@ pub struct Prop {
     pub frames: usize,
     /// How fast `animate` plays them, when the script does not say.
     pub fps: f32,
+    /// Drawn above the darkness of an unlit room, so it can still be seen (a light switch).
+    pub glow: bool,
 }
 
 /// Something the player can act on. `rect` is in game coordinates (y up); `walk_to` is where the
@@ -50,6 +52,7 @@ pub struct Room {
     background: Option<String>,
     props: Vec<Prop>,
     hotspots: Vec<Hotspot>,
+    dark: bool,
     vertices: Vec<Vec2>,
     edges: Vec<Segment>,
     corners_visible: Vec<Vec<bool>>,
@@ -91,12 +94,19 @@ impl Room {
             background,
             props,
             hotspots: Vec::new(),
+            dark: false,
             vertices,
             edges,
             corners_visible: Vec::new(),
         };
         room.corners_visible = pathfinder::corner_visibility(&room);
         room
+    }
+
+    /// A dark room is drawn dark until a script turns its lights on (`World::set_light`).
+    pub fn with_dark(mut self, dark: bool) -> Self {
+        self.dark = dark;
+        self
     }
 
     pub fn with_hotspots(mut self, hotspots: Vec<Hotspot>) -> Self {
@@ -132,6 +142,7 @@ impl Room {
                 let depth: Option<f32> = prop.get("depth")?;
                 let frames: Option<usize> = prop.get("frames")?;
                 let fps: Option<f32> = prop.get("fps")?;
+                let glow: Option<bool> = prop.get("glow")?;
                 props.push(Prop {
                     id,
                     image,
@@ -140,6 +151,7 @@ impl Room {
                     depth: depth.unwrap_or(y),
                     frames: frames.unwrap_or(1).max(1),
                     fps: fps.unwrap_or(DEFAULT_FPS),
+                    glow: glow.unwrap_or(false),
                 });
             }
         }
@@ -170,10 +182,16 @@ impl Room {
 
         let margin: Option<f32> = table.get("margin")?;
         let background: Option<String> = table.get("background")?;
+        let dark: Option<bool> = table.get("dark")?;
         Ok(
             Self::with_options(outline, obstacles, margin.unwrap_or(0.0), background, props)
-                .with_hotspots(hotspots),
+                .with_hotspots(hotspots)
+                .with_dark(dark.unwrap_or(false)),
         )
+    }
+
+    pub fn is_dark(&self) -> bool {
+        self.dark
     }
 
     pub fn hotspots(&self) -> &[Hotspot] {

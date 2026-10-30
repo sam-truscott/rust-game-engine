@@ -89,3 +89,28 @@ fn a_room_without_optional_fields_still_loads() {
 fn a_room_missing_its_walk_area_is_an_error() {
     assert!(Room::from_lua("return {}", "empty").is_err());
 }
+
+fn closet() -> Room {
+    let source = assets::text("rooms/closet.lua").expect("rooms/closet.lua is missing");
+    Room::from_lua(&source, "rooms/closet.lua").expect("rooms/closet.lua does not parse")
+}
+
+#[test]
+fn the_closet_is_a_small_dark_room_with_a_switch_door_and_shelf() {
+    let room = closet();
+    assert!(room.is_dark());
+    assert!(!hall().is_dark());
+    assert!(room.props().iter().any(|prop| prop.glow));
+    let width = room.outline().iter().map(|p| p.x).fold(0.0, f32::max)
+        - room.outline().iter().map(|p| p.x).fold(f32::MAX, f32::min);
+    assert!(width <= 80.0, "the closet is a quarter of the screen wide");
+    for id in ["switch", "door", "shelf"] {
+        let hotspot = room.hotspots().iter().find(|h| h.id == id).unwrap();
+        let spot = hotspot.walk_to.unwrap();
+        assert_eq!(room.constrain(spot.x, spot.y), spot, "{id}");
+    }
+    assert!(assets::bytes(room.background().unwrap()).is_some());
+    for prop in room.props() {
+        assert!(assets::bytes(&prop.image).is_some(), "{}", prop.image);
+    }
+}

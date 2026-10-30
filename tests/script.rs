@@ -243,6 +243,7 @@ fn animate_uses_the_props_fps_from_the_room_unless_given() {
             depth: 0.0,
             frames: 4,
             fps: 2.0,
+            glow: false,
         }],
     );
     let mut actor = Actor::new(10.0, 50.0);

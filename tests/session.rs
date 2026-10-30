@@ -310,12 +310,108 @@ fn using_the_wrong_item_on_a_hotspot_does_not_work() {
     assert_eq!(session.world.items(), vec!["brass_key", "coin"]);
 }
 
-#[test]
-fn interacting_with_the_door_plays_the_door_and_doing_it_again_closes_it() {
+// The closet: its door and switch, as screen points.
+const CLOSET_SWITCH: Vec2 = vec2(163.0, 60.0 + PANEL_HEIGHT);
+const CLOSET_DOOR: Vec2 = vec2(182.0, 50.0 + PANEL_HEIGHT);
+const CLOSET_SHELF: Vec2 = vec2(140.0, 80.0 + PANEL_HEIGHT);
+
+fn in_the_closet() -> Session {
     let mut session = session();
-    for expected in [3, 0] {
-        double_click(&mut session, DOOR);
-        settle(&mut session);
-        assert_eq!(session.world.frame("door"), expected);
+    double_click(&mut session, DOOR);
+    settle(&mut session);
+    session
+}
+
+#[test]
+fn a_double_click_on_the_door_opens_it_and_goes_into_the_closet() {
+    let mut session = session();
+    assert_eq!(session.room_id, "hall");
+    double_click(&mut session, DOOR);
+    settle(&mut session);
+    for _ in 0..3 {
+        session.update(STEP);
     }
+
+    assert_eq!(session.room_id, "closet");
+    assert!(session.take_room_changed());
+    assert!(!session.take_room_changed(), "the change is reported once");
+    assert_eq!(session.player.position(), vec2(182.0, 28.0));
+}
+
+#[test]
+fn the_closet_is_dark_until_the_switch_is_used() {
+    let mut session = in_the_closet();
+    assert!(session.is_dark());
+    assert_eq!(session.world.frame("closet_switch"), 0);
+
+    click(&mut session, CLOSET_SHELF);
+    assert_eq!(next_words(&mut session), "I can't see a thing in here.");
+    settle(&mut session);
+
+    double_click(&mut session, CLOSET_SWITCH);
+    settle(&mut session);
+    assert!(!session.is_dark());
+    assert_eq!(session.world.frame("closet_switch"), 1);
+
+    click(&mut session, CLOSET_SHELF);
+    assert_eq!(
+        next_words(&mut session),
+        "Shelves of clean glasses for the pub."
+    );
+}
+
+#[test]
+fn the_switch_turns_the_light_off_again() {
+    let mut session = in_the_closet();
+    for expected_dark in [false, true] {
+        double_click(&mut session, CLOSET_SWITCH);
+        settle(&mut session);
+        assert_eq!(session.is_dark(), expected_dark);
+    }
+}
+
+#[test]
+fn the_lights_stay_on_when_you_leave_and_come_back() {
+    let mut session = in_the_closet();
+    double_click(&mut session, CLOSET_SWITCH);
+    settle(&mut session);
+
+    double_click(&mut session, CLOSET_DOOR);
+    settle(&mut session);
+    session.update(STEP);
+    assert_eq!(session.room_id, "hall");
+    assert!(!session.is_dark(), "the hall is not a dark room");
+
+    double_click(&mut session, DOOR);
+    settle(&mut session);
+    session.update(STEP);
+    assert_eq!(session.room_id, "closet");
+    assert!(!session.is_dark());
+}
+
+#[test]
+fn the_closet_door_leads_back_to_the_bar_with_the_door_closed() {
+    let mut session = in_the_closet();
+    double_click(&mut session, CLOSET_DOOR);
+    settle(&mut session);
+    session.update(STEP);
+
+    assert_eq!(session.room_id, "hall");
+    assert_eq!(session.player.position(), vec2(146.0, 90.0));
+    assert_eq!(session.world.frame("door"), 0);
+    assert_eq!(session.world.frame("closet_door"), 0);
+}
+
+#[test]
+fn each_room_keeps_its_own_hotspot_handlers() {
+    let mut session = in_the_closet();
+    click(&mut session, CLOSET_DOOR);
+    assert_eq!(next_words(&mut session), "The door back to the bar.");
+    settle(&mut session);
+    double_click(&mut session, CLOSET_DOOR);
+    settle(&mut session);
+    session.update(STEP);
+
+    click(&mut session, DOOR);
+    assert_eq!(next_words(&mut session), "The door to the cupboard.");
 }

@@ -18,12 +18,21 @@ function say(text) __say(text) coroutine.yield() end
 function wait(seconds) __wait(seconds) coroutine.yield() end
 -- Plays frames first..last (0-based, either direction) of an animated prop, then stays on the last.
 function animate(id, first, last, fps) __animate(id, first, last, fps) coroutine.yield() end
+-- Leaves for another room (its id, such as "closet"), arriving at x, y. The script carries on once there.
+function enterRoom(room, x, y) __enter_room(room, x, y) coroutine.yield() end
 
 -- Scripts fill these in: hotspot.counter = { look = function() say("...") end, interact = ... } and
 -- item.brass_key = { look = ... }. A single click runs look, a double click interact. A table may also
 -- hold use_with = { other_item = function() ... end }.
 hotspot = {}
 item = {}
+
+-- Each room has its own table of hotspot handlers, so ids only have to be unique within a room.
+__hotspots = {}
+function __scope(room)
+  __hotspots[room] = __hotspots[room] or {}
+  hotspot = __hotspots[room]
+end
 
 -- What happens when look or interact is used on an item the player carries.
 function __item_interaction(id, verb)
@@ -76,6 +85,7 @@ enum Command {
     Say(String),
     Wait(f32),
     Animate(String, usize, usize, Option<f32>),
+    EnterRoom(String, f32, f32),
 }
 
 enum Waiting {
@@ -110,6 +120,14 @@ pub struct ScriptRunner {
     scripts: Vec<Script>,
     pending: Rc<RefCell<Option<Command>>>,
     world: World,
+    room_change: Option<RoomChange>,
+}
+
+/// A script asked to move to another room; `Session` carries it out.
+pub struct RoomChange {
+    pub room: String,
+    pub x: f32,
+    pub y: f32,
 }
 
 impl ScriptRunner {
@@ -117,7 +135,7 @@ impl ScriptRunner {
         Self::with_world(World::default())
     }
 
-    /// `give`, `take`, `has`, `hide` and `setFrame` in scripts act on this world.
+    /// `give`, `take`, `has`, `hide`, `setFrame`, `setLight` and `isLit` in scripts act on this world.
     pub fn with_world(world: World) -> mlua::Result<Self> {
         let lua = Lua::new();
         let pending = Rc::new(RefCell::new(None));
@@ -146,7 +164,14 @@ impl ScriptRunner {
             },
         )?;
 
+        let slot = pending.clone();
+        let enter_room = lua.create_function(move |_, (room, x, y): (String, f32, f32)| {
+            *slot.borrow_mut() = Some(Command::EnterRoom(room, x, y));
+            Ok(())
+        })?;
+
         let globals = lua.globals();
+        globals.set("__enter_room", enter_room)?;
         globals.set("__animate", animate)?;
         globals.set("__walk_to", walk_to)?;
         globals.set("__say", say)?;
@@ -180,6 +205,19 @@ impl ScriptRunner {
         )?;
         let state = world.clone();
         globals.set(
+            "setLight",
+            lua.create_function(move |_, (room, on): (String, bool)| {
+                state.set_light(&room, on);
+                Ok(())
+            })?,
+        )?;
+        let state = world.clone();
+        globals.set(
+            "isLit",
+            lua.create_function(move |_, room: String| Ok(state.is_lit(&room)))?,
+        )?;
+        let state = world.clone();
+        globals.set(
             "setFrame",
             lua.create_function(move |_, (id, frame): (String, usize)| {
                 state.set_frame(&id, frame);
@@ -193,7 +231,19 @@ impl ScriptRunner {
             scripts: Vec::new(),
             pending,
             world,
+            room_change: None,
         })
+    }
+
+    /// Makes the hotspot handlers a script defines belong to this room (until the next call).
+    pub fn set_room(&self, room: &str) -> mlua::Result<()> {
+        let scope: Function = self.lua.globals().get("__scope")?;
+        scope.call(room)
+    }
+
+    /// The room change a script has asked for, if any.
+    pub fn take_room_change(&mut self) -> Option<RoomChange> {
+        self.room_change.take()
     }
 
     pub fn world(&self) -> World {
@@ -313,6 +363,10 @@ impl ScriptRunner {
                                     Waiting::Speaking
                                 }
                                 Command::Wait(seconds) => Waiting::Seconds(seconds),
+                                Command::EnterRoom(room, x, y) => {
+                                    self.room_change = Some(RoomChange { room, x, y });
+                                    Waiting::Seconds(0.0)
+                                }
                                 Command::Animate(id, first, last, fps) => {
                                     let fps = fps.unwrap_or_else(|| {
                                         room.props()

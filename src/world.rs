@@ -8,6 +8,7 @@ struct Data {
     hidden: HashSet<String>,
     frames: HashMap<String, usize>,
     animations: HashMap<String, Animation>,
+    lit: HashSet<String>,
 }
 
 /// Frames `first` to `last` (either direction) shown one after another, each for 1/fps seconds.
@@ -38,7 +39,7 @@ impl Animation {
 }
 
 /// What scripts change: what the player carries, which things in the room are gone and which frame
-/// animated props show.
+/// animated props show and which rooms have their lights on.
 /// Clones share the same state, so the script runner and the game both see it.
 #[derive(Clone, Default)]
 pub struct World(Rc<RefCell<Data>>);
@@ -72,6 +73,21 @@ impl World {
     /// Hides the prop and the hotspot with this id.
     pub fn hide(&self, id: &str) {
         self.0.borrow_mut().hidden.insert(id.to_owned());
+    }
+
+    /// Turns the lights of a room (by id, e.g. "closet") on or off. Rooms marked `dark` in their file
+    /// are drawn dark until their lights are on.
+    pub fn set_light(&self, room: &str, on: bool) {
+        let mut data = self.0.borrow_mut();
+        if on {
+            data.lit.insert(room.to_owned());
+        } else {
+            data.lit.remove(room);
+        }
+    }
+
+    pub fn is_lit(&self, room: &str) -> bool {
+        self.0.borrow().lit.contains(room)
     }
 
     pub fn is_hidden(&self, id: &str) -> bool {
