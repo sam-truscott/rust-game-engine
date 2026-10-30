@@ -2,11 +2,10 @@ use game::actor::Actor;
 use game::assets;
 use game::direction::Direction;
 use game::room::{Prop, Room};
+use game::ui::{SCREEN_HEIGHT, SCREEN_WIDTH};
 use game::world::World;
 use macroquad::prelude::*;
 
-pub const VIRTUAL_WIDTH: f32 = 320.0;
-pub const VIRTUAL_HEIGHT: f32 = 180.0;
 pub const FRAME_WIDTH: f32 = 16.0;
 pub const FRAME_HEIGHT: f32 = 32.0;
 
@@ -23,7 +22,7 @@ fn load_texture(path: &str) -> Texture2D {
 }
 
 /// Everything here draws into the virtual screen: origin top-left, y down. Game coordinates are
-/// y up, so positions are flipped with `VIRTUAL_HEIGHT` on the way in.
+/// y up, so positions are flipped with `SCREEN_HEIGHT` on the way in.
 ///
 /// Draws an actor from a sheet with one row per view (front, back, right-facing side) and one column
 /// per frame (idle, then the walk cycle). The left view is the side view mirrored. The walk frame
@@ -54,22 +53,19 @@ impl CharacterSprite {
         };
 
         let position = actor.position();
-        draw_texture_ex(
+        blit(
             &self.texture,
-            (position.x - FRAME_WIDTH / 2.0).round(),
-            (VIRTUAL_HEIGHT - position.y - FRAME_HEIGHT).round(),
-            WHITE,
-            DrawTextureParams {
-                source: Some(Rect::new(
-                    column as f32 * FRAME_WIDTH,
-                    row as f32 * FRAME_HEIGHT,
-                    FRAME_WIDTH,
-                    FRAME_HEIGHT,
-                )),
-                dest_size: Some(vec2(FRAME_WIDTH, FRAME_HEIGHT)),
-                flip_x: facing == Direction::Left,
-                ..Default::default()
-            },
+            vec2(
+                position.x - FRAME_WIDTH / 2.0,
+                SCREEN_HEIGHT - position.y - FRAME_HEIGHT,
+            ),
+            Rect::new(
+                column as f32 * FRAME_WIDTH,
+                row as f32 * FRAME_HEIGHT,
+                FRAME_WIDTH,
+                FRAME_HEIGHT,
+            ),
+            facing == Direction::Left,
         );
     }
 }
@@ -105,11 +101,11 @@ impl RoomRenderer {
             draw_texture(background, 0.0, 0.0, WHITE);
         }
 
+        let shown = |prop: &Prop| !prop.id.as_deref().is_some_and(|id| world.is_hidden(id));
         let mut items: Vec<(f32, Item)> = self
             .props
             .iter()
-            .filter(|(prop, _)| !prop.id.as_deref().is_some_and(|id| world.is_hidden(id)))
-            .filter(|(prop, _)| !(dark && prop.glow))
+            .filter(|(prop, _)| shown(prop) && !(dark && prop.glow))
             .map(|(prop, texture)| (prop.depth, Item::Prop(prop, texture)))
             .collect();
         items.push((actor.position().y, Item::Actor));
@@ -123,34 +119,47 @@ impl RoomRenderer {
         }
 
         if dark {
-            draw_rectangle(0.0, 0.0, VIRTUAL_WIDTH, VIRTUAL_HEIGHT, DARKNESS);
-            for (prop, texture) in self.props.iter().filter(|(prop, _)| prop.glow) {
-                if !prop.id.as_deref().is_some_and(|id| world.is_hidden(id)) {
-                    draw_prop(prop, texture, world);
-                }
+            draw_rectangle(0.0, 0.0, SCREEN_WIDTH, SCREEN_HEIGHT, DARKNESS);
+            for (prop, texture) in self
+                .props
+                .iter()
+                .filter(|(prop, _)| prop.glow && shown(prop))
+            {
+                draw_prop(prop, texture, world);
             }
         }
     }
 }
 
+/// Draws `source`, a pixel rectangle of the texture, with its top-left at `at` (rounded to whole pixels).
+fn blit(texture: &Texture2D, at: Vec2, source: Rect, flip_x: bool) {
+    draw_texture_ex(
+        texture,
+        at.x.round(),
+        at.y.round(),
+        WHITE,
+        DrawTextureParams {
+            source: Some(source),
+            dest_size: Some(source.size()),
+            flip_x,
+            ..Default::default()
+        },
+    );
+}
+
 fn draw_prop(prop: &Prop, texture: &Texture2D, world: &World) {
     let width = texture.width() / prop.frames as f32;
     let frame = prop.id.as_deref().map_or(0, |id| world.frame(id));
-    draw_texture_ex(
+    blit(
         texture,
-        prop.x.round(),
-        (VIRTUAL_HEIGHT - prop.y - texture.height()).round(),
-        WHITE,
-        DrawTextureParams {
-            source: Some(Rect::new(
-                frame.min(prop.frames - 1) as f32 * width,
-                0.0,
-                width,
-                texture.height(),
-            )),
-            dest_size: Some(vec2(width, texture.height())),
-            ..Default::default()
-        },
+        vec2(prop.x, SCREEN_HEIGHT - prop.y - texture.height()),
+        Rect::new(
+            frame.min(prop.frames - 1) as f32 * width,
+            0.0,
+            width,
+            texture.height(),
+        ),
+        false,
     );
 }
 

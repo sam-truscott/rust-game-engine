@@ -30,44 +30,6 @@ fn a_prop_with_an_id_can_be_hidden_by_the_hotspot_with_the_same_id() {
 }
 
 #[test]
-fn hotspots_are_reachable_and_the_room_script_loads() {
-    let room = hall();
-    let definitions = assets::text("scripts/hall.lua").expect("scripts/hall.lua is missing");
-    let mut runner = game::script::ScriptRunner::new().unwrap();
-    runner
-        .load_definitions("scripts/hall.lua", &definitions)
-        .unwrap();
-
-    for hotspot in room.hotspots() {
-        let spot = hotspot
-            .walk_to
-            .expect("hall hotspots have a spot to stand on");
-        assert_eq!(
-            room.constrain(spot.x, spot.y),
-            spot,
-            "{} is not walkable",
-            hotspot.id
-        );
-        assert!(hotspot.rect.w > 0.0 && hotspot.rect.h > 0.0);
-    }
-}
-
-#[test]
-fn everything_the_hall_refers_to_exists() {
-    let room = hall();
-    assert!(assets::bytes(room.background().unwrap()).is_some());
-    for prop in room.props() {
-        assert!(
-            assets::bytes(&prop.image).is_some(),
-            "missing {}",
-            prop.image
-        );
-    }
-    assert!(assets::text("scripts/intro.lua").is_some());
-    assert!(assets::bytes("characters/player.png").is_some());
-}
-
-#[test]
 fn the_player_starts_somewhere_walkable() {
     let room = hall();
     assert_eq!(room.constrain(30.0, 50.0), vec2(30.0, 50.0));
@@ -113,4 +75,90 @@ fn the_closet_is_a_small_dark_room_with_a_switch_door_and_shelf() {
     for prop in room.props() {
         assert!(assets::bytes(&prop.image).is_some(), "{}", prop.image);
     }
+}
+
+fn room_named(id: &str) -> Room {
+    let path = format!("rooms/{id}.lua");
+    let source = assets::text(&path).unwrap_or_else(|| panic!("{path} is missing"));
+    Room::from_lua(&source, &path).unwrap_or_else(|error| panic!("{path}: {error}"))
+}
+
+#[test]
+fn every_room_has_its_script_images_and_reachable_hotspots() {
+    for id in game::session::ROOMS {
+        let room = room_named(id);
+        let path = format!("scripts/{id}.lua");
+        let definitions = assets::text(&path).unwrap_or_else(|| panic!("{path} is missing"));
+        let mut runner = game::script::ScriptRunner::new().unwrap();
+        runner.set_room(id).unwrap();
+        runner.load_definitions(&path, &definitions).unwrap();
+
+        assert!(assets::bytes(room.background().unwrap()).is_some(), "{id}");
+        for prop in room.props() {
+            assert!(assets::bytes(&prop.image).is_some(), "{id}: {}", prop.image);
+        }
+        let mut ids: Vec<_> = room.hotspots().iter().map(|h| h.id.as_str()).collect();
+        ids.sort();
+        ids.dedup();
+        assert_eq!(
+            ids.len(),
+            room.hotspots().len(),
+            "{id}: duplicate hotspot id"
+        );
+        for hotspot in room.hotspots() {
+            let spot = hotspot
+                .walk_to
+                .unwrap_or_else(|| panic!("{id}.{}: no spot", hotspot.id));
+            assert_eq!(
+                room.constrain(spot.x, spot.y),
+                spot,
+                "{id}.{} not walkable",
+                hotspot.id
+            );
+            assert!(hotspot.rect.w > 0.0 && hotspot.rect.h > 0.0);
+        }
+    }
+    assert!(assets::text("scripts/intro.lua").is_some());
+    assert!(assets::bytes("characters/player.png").is_some());
+}
+
+#[test]
+fn prop_ids_are_unique_across_rooms_because_the_world_keys_on_them() {
+    let mut seen = std::collections::HashSet::new();
+    for id in game::session::ROOMS {
+        for prop in room_named(id).props() {
+            if let Some(prop_id) = &prop.id {
+                assert!(seen.insert(prop_id.clone()), "prop id {prop_id} is reused");
+            }
+        }
+    }
+}
+
+#[test]
+fn an_outline_needs_three_finite_points() {
+    for outline in ["{ {0,0}, {10,0} }", "{ {0,0}, {10,0}, {10,0/0} }", "{}"] {
+        let source = format!("return {{ walkArea = {outline} }}");
+        assert!(Room::from_lua(&source, "bad").is_err(), "{outline}");
+    }
+}
+
+#[test]
+fn asset_paths_cannot_leave_the_assets_folder() {
+    assert!(assets::bytes("rooms/hall.lua").is_some());
+    for path in [
+        "../Cargo.toml",
+        "rooms/../../Cargo.toml",
+        "/rooms/hall.lua",
+        r"rooms\hall.lua",
+        "C:/Windows/win.ini",
+    ] {
+        assert!(assets::bytes(path).is_none(), "{path}");
+    }
+}
+
+#[test]
+fn rooms_and_items_are_loaded_without_file_or_os_access() {
+    assert!(Room::from_lua("local f = io.open return {}", "x").is_err());
+    assert!(Room::from_lua("return load('return 1')()", "x").is_err());
+    assert!(game::items::Items::from_lua("os.exit()", "x").is_err());
 }

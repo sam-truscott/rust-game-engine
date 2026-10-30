@@ -5,7 +5,7 @@ use std::cell::RefCell;
 use std::rc::Rc;
 
 use macroquad::math::Vec2;
-use mlua::{Function, Lua, Thread};
+use mlua::{Function, Lua, LuaOptions, StdLib, Thread};
 
 use crate::actor::Actor;
 use crate::room::{DEFAULT_FPS, Room};
@@ -34,19 +34,22 @@ function __scope(room)
   hotspot = __hotspots[room]
 end
 
--- What happens when look or interact is used on an item the player carries.
-function __item_interaction(id, verb)
-  return function()
-    local handlers = item[id]
-    local handler = handlers and handlers[verb]
-    if handler then
-      handler()
-    elseif verb == "look" then
-      say("I see nothing special.")
-    else
-      say("I can't do that.")
-    end
+-- Runs the handler for a verb (look or interact) in a table of handlers, or says the default.
+local function run(handlers_by_id, id, verb)
+  local handlers = handlers_by_id[id]
+  local handler = handlers and handlers[verb]
+  if handler then
+    handler()
+  elseif verb == "look" then
+    say("I see nothing special.")
+  else
+    say("I can't do that.")
   end
+end
+
+-- Look or interact on an item the player carries.
+function __item_interaction(id, verb)
+  return function() run(item, id, verb) end
 end
 
 -- Using the carried item `held` on a hotspot (walking to x, y first) or on another carried item.
@@ -63,22 +66,40 @@ function __use_with(held, kind, target, x, y)
   end
 end
 
--- What happens when look or interact is used on a hotspot: walk to its spot, then run the handler if there is one.
+-- Look or interact on a hotspot: walk to its spot, then run the handler.
 function __interaction(id, verb, x, y)
   return function()
     if x then walkTo(x, y) end
-    local handlers = hotspot[id]
-    local handler = handlers and handlers[verb]
-    if handler then
-      handler()
-    elseif verb == "look" then
-      say("I see nothing special.")
-    else
-      say("I can't do that.")
-    end
+    run(hotspot, id, verb)
   end
 end
 "#;
+
+/// Registers a Lua global: `bind!(lua, globals, state, "name", |s, arg: Type, ...| body)` where `s` is a
+/// clone of `state` and `body` is an `mlua::Result`.
+macro_rules! bind {
+    ($lua:expr, $globals:expr, $state:expr, $name:literal, |$s:ident $(, $arg:ident: $ty:ty)*| $body:expr) => {{
+        let $s = $state.clone();
+        $globals.set(
+            $name,
+            $lua.create_function(move |_, ($($arg,)*): ($($ty,)*)| $body)?,
+        )?;
+    }};
+}
+
+fn record(slot: &RefCell<Option<Command>>, command: Command) -> mlua::Result<()> {
+    *slot.borrow_mut() = Some(command);
+    Ok(())
+}
+
+/// Rejects NaN and infinity, which would never finish a wait or break path finding.
+fn finite(values: &[f32]) -> mlua::Result<()> {
+    if values.iter().all(|v| v.is_finite()) {
+        Ok(())
+    } else {
+        Err(mlua::Error::runtime("numbers must be finite"))
+    }
+}
 
 enum Command {
     WalkTo(f32, f32),
@@ -123,6 +144,11 @@ pub struct ScriptRunner {
     room_change: Option<RoomChange>,
 }
 
+/// A point as the two optional numbers the Lua wrappers take (nothing means "do not walk").
+fn split(point: Option<Vec2>) -> (Option<f32>, Option<f32>) {
+    (point.map(|p| p.x), point.map(|p| p.y))
+}
+
 /// A script asked to move to another room; `Session` carries it out.
 pub struct RoomChange {
     pub room: String,
@@ -137,93 +163,78 @@ impl ScriptRunner {
 
     /// `give`, `take`, `has`, `hide`, `setFrame`, `setLight` and `isLit` in scripts act on this world.
     pub fn with_world(world: World) -> mlua::Result<Self> {
-        let lua = Lua::new();
+        let lua = sandboxed_lua(
+            StdLib::TABLE | StdLib::STRING | StdLib::MATH | StdLib::COROUTINE | StdLib::UTF8,
+        )?;
         let pending = Rc::new(RefCell::new(None));
 
-        let slot = pending.clone();
-        let walk_to = lua.create_function(move |_, (x, y): (f32, f32)| {
-            *slot.borrow_mut() = Some(Command::WalkTo(x, y));
-            Ok(())
-        })?;
-        let slot = pending.clone();
-        let say = lua.create_function(move |_, text: String| {
-            *slot.borrow_mut() = Some(Command::Say(text));
-            Ok(())
-        })?;
-        let slot = pending.clone();
-        let wait = lua.create_function(move |_, seconds: f32| {
-            *slot.borrow_mut() = Some(Command::Wait(seconds));
-            Ok(())
-        })?;
-
-        let slot = pending.clone();
-        let animate = lua.create_function(
-            move |_, (id, first, last, fps): (String, usize, usize, Option<f32>)| {
-                *slot.borrow_mut() = Some(Command::Animate(id, first, last, fps));
-                Ok(())
-            },
-        )?;
-
-        let slot = pending.clone();
-        let enter_room = lua.create_function(move |_, (room, x, y): (String, f32, f32)| {
-            *slot.borrow_mut() = Some(Command::EnterRoom(room, x, y));
-            Ok(())
-        })?;
-
         let globals = lua.globals();
-        globals.set("__enter_room", enter_room)?;
-        globals.set("__animate", animate)?;
-        globals.set("__walk_to", walk_to)?;
-        globals.set("__say", say)?;
-        globals.set("__wait", wait)?;
+        // Blocking calls only record what was asked for; the PRELUDE wrappers then yield.
+        bind!(lua, globals, pending, "__walk_to", |p, x: f32, y: f32| {
+            finite(&[x, y])?;
+            record(&p, Command::WalkTo(x, y))
+        });
+        bind!(lua, globals, pending, "__say", |p, text: String| {
+            record(&p, Command::Say(text))
+        });
+        bind!(lua, globals, pending, "__wait", |p, seconds: f32| {
+            finite(&[seconds])?;
+            record(&p, Command::Wait(seconds))
+        });
+        bind!(
+            lua,
+            globals,
+            pending,
+            "__animate",
+            |p, id: String, first: usize, last: usize, fps: Option<f32>| {
+                finite(fps.as_slice())?;
+                record(&p, Command::Animate(id, first, last, fps))
+            }
+        );
+        bind!(
+            lua,
+            globals,
+            pending,
+            "__enter_room",
+            |p, room: String, x: f32, y: f32| {
+                finite(&[x, y])?;
+                record(&p, Command::EnterRoom(room, x, y))
+            }
+        );
 
-        let state = world.clone();
-        globals.set(
-            "give",
-            lua.create_function(move |_, id: String| {
-                state.give(&id);
-                Ok(())
-            })?,
-        )?;
-        let state = world.clone();
-        globals.set(
-            "take",
-            lua.create_function(move |_, id: String| Ok(state.take(&id)))?,
-        )?;
-        let state = world.clone();
-        globals.set(
-            "has",
-            lua.create_function(move |_, id: String| Ok(state.has(&id)))?,
-        )?;
-        let state = world.clone();
-        globals.set(
-            "hide",
-            lua.create_function(move |_, id: String| {
-                state.hide(&id);
-                Ok(())
-            })?,
-        )?;
-        let state = world.clone();
-        globals.set(
+        bind!(lua, globals, world, "give", |w, id: String| {
+            w.give(&id);
+            Ok(())
+        });
+        bind!(lua, globals, world, "take", |w, id: String| Ok(w.take(&id)));
+        bind!(lua, globals, world, "has", |w, id: String| Ok(w.has(&id)));
+        bind!(lua, globals, world, "hide", |w, id: String| {
+            w.hide(&id);
+            Ok(())
+        });
+        bind!(
+            lua,
+            globals,
+            world,
             "setLight",
-            lua.create_function(move |_, (room, on): (String, bool)| {
-                state.set_light(&room, on);
+            |w, room: String, on: bool| {
+                w.set_light(&room, on);
                 Ok(())
-            })?,
-        )?;
-        let state = world.clone();
-        globals.set(
-            "isLit",
-            lua.create_function(move |_, room: String| Ok(state.is_lit(&room)))?,
-        )?;
-        let state = world.clone();
-        globals.set(
+            }
+        );
+        bind!(lua, globals, world, "isLit", |w, room: String| Ok(
+            w.is_lit(&room)
+        ));
+        bind!(
+            lua,
+            globals,
+            world,
             "setFrame",
-            lua.create_function(move |_, (id, frame): (String, usize)| {
-                state.set_frame(&id, frame);
+            |w, id: String, frame: usize| {
+                w.set_frame(&id, frame);
                 Ok(())
-            })?,
-        )?;
+            }
+        );
         lua.load(PRELUDE).set_name("prelude").exec()?;
 
         Ok(ScriptRunner {
@@ -252,13 +263,7 @@ impl ScriptRunner {
 
     pub fn start(&mut self, name: &str, source: &str) -> mlua::Result<()> {
         let function = self.lua.load(source).set_name(name).into_function()?;
-        let thread = self.lua.create_thread(function)?;
-        self.scripts.push(Script {
-            name: name.to_owned(),
-            thread,
-            waiting: None,
-        });
-        Ok(())
+        self.push(name, function)
     }
 
     /// Runs a script to completion straight away; for scripts that only define things, such as hotspot
@@ -269,7 +274,7 @@ impl ScriptRunner {
 
     /// Starts `verb` (`look` or `interact`) on a hotspot, walking to `walk_to` first.
     pub fn interact(&mut self, id: &str, verb: &str, walk_to: Option<Vec2>) -> mlua::Result<()> {
-        let (x, y) = (walk_to.map(|p| p.x), walk_to.map(|p| p.y));
+        let (x, y) = split(walk_to);
         self.spawn("__interaction", (id, verb, x, y), format!("{id}.{verb}"))
     }
 
@@ -285,7 +290,7 @@ impl ScriptRunner {
         id: &str,
         walk_to: Option<Vec2>,
     ) -> mlua::Result<()> {
-        let (x, y) = (walk_to.map(|p| p.x), walk_to.map(|p| p.y));
+        let (x, y) = split(walk_to);
         self.spawn(
             "__use_with",
             (held, "hotspot", id, x, y),
@@ -312,9 +317,13 @@ impl ScriptRunner {
     ) -> mlua::Result<()> {
         let factory: Function = self.lua.globals().get(factory)?;
         let function: Function = factory.call(args)?;
+        self.push(&name, function)
+    }
+
+    fn push(&mut self, name: &str, function: Function) -> mlua::Result<()> {
         let thread = self.lua.create_thread(function)?;
         self.scripts.push(Script {
-            name,
+            name: name.to_owned(),
             thread,
             waiting: None,
         });
@@ -387,4 +396,21 @@ impl ScriptRunner {
             }
         }
     }
+}
+
+/// A Lua state with only the pure libraries (`libs` from `TABLE`, `STRING`, `MATH`, `COROUTINE`,
+/// `UTF8`) and without the base functions that load code or files, so rooms, items and scripts cannot
+/// touch the file system, run programs or load native modules even if they come from a mod.
+pub(crate) fn sandboxed_lua(libs: StdLib) -> mlua::Result<Lua> {
+    let lua = Lua::new_with(libs, LuaOptions::default())?;
+    let globals = lua.globals();
+    for name in ["load", "loadfile", "dofile", "loadstring", "require"] {
+        globals.set(name, mlua::Nil)?;
+    }
+    Ok(lua)
+}
+
+/// For files that only return data: a room or the items.
+pub(crate) fn data_lua() -> mlua::Result<Lua> {
+    sandboxed_lua(StdLib::TABLE | StdLib::STRING | StdLib::MATH)
 }

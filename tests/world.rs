@@ -101,3 +101,37 @@ fn setting_a_frame_stops_an_animation_and_other_props_are_unaffected() {
     assert_eq!(world.frame("door"), 1);
     assert_eq!(world.frame("lid"), 0);
 }
+
+#[test]
+fn a_single_frame_animation_shows_it_for_one_beat_and_an_unknown_prop_is_on_frame_0() {
+    let world = World::default();
+    assert_eq!(world.frame("nothing"), 0);
+    assert!(!world.is_animating("nothing"));
+
+    world.animate("door", 2, 2, 10.0);
+    assert_eq!(world.frame("door"), 2);
+    world.advance(0.11);
+    assert!(!world.is_animating("door"));
+    assert_eq!(world.frame("door"), 2);
+}
+
+#[test]
+fn a_zero_or_negative_speed_does_not_break_the_animation() {
+    let world = World::default();
+    for fps in [0.0, -5.0] {
+        world.animate("door", 0, 3, fps);
+        world.advance(0.5);
+        assert!(world.frame("door") <= 3);
+        world.set_frame("door", 0);
+    }
+}
+
+#[test]
+fn lights_are_per_room() {
+    let world = World::default();
+    world.set_light("closet", true);
+    assert!(world.is_lit("closet"));
+    assert!(!world.is_lit("hall"));
+    world.set_light("closet", false);
+    assert!(!world.is_lit("closet"));
+}

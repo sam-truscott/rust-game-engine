@@ -1,26 +1,8 @@
 use game::actor::Actor;
 use game::direction::Direction;
-use game::room::Room;
-use macroquad::math::vec2;
+mod common;
 
-fn floor() -> Room {
-    Room::new(
-        vec![
-            vec2(0.0, 0.0),
-            vec2(200.0, 0.0),
-            vec2(200.0, 100.0),
-            vec2(0.0, 100.0),
-        ],
-        vec![],
-    )
-}
-
-fn assert_close(actual: f32, expected: f32) {
-    assert!(
-        (actual - expected).abs() < 1e-3,
-        "expected {expected}, got {actual}"
-    );
-}
+use common::{assert_close, floor};
 
 #[test]
 fn starts_facing_the_viewer_and_standing() {

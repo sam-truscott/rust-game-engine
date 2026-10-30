@@ -6,17 +6,9 @@ use macroquad::math::vec2;
 
 const DELTA: f32 = 0.05;
 
-fn floor() -> Room {
-    Room::new(
-        vec![
-            vec2(0.0, 0.0),
-            vec2(200.0, 0.0),
-            vec2(200.0, 100.0),
-            vec2(0.0, 100.0),
-        ],
-        vec![],
-    )
-}
+mod common;
+
+use common::floor;
 
 /// Runs until nothing is left running; returns everything the actor said, in order.
 fn run_to_the_end(runner: &mut ScriptRunner, room: &Room, actor: &mut Actor) -> Vec<String> {

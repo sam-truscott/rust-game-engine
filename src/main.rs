@@ -6,10 +6,9 @@ use std::path::Path;
 use automation::{Automation, FIXED_DELTA, Frame, Inputs};
 use game::session::Session;
 use game::ui;
+use game::ui::{SCREEN_HEIGHT, SCREEN_WIDTH};
 use macroquad::prelude::*;
-use render::{
-    CharacterSprite, CursorSprite, FRAME_HEIGHT, RoomRenderer, VIRTUAL_HEIGHT, VIRTUAL_WIDTH,
-};
+use render::{CharacterSprite, CursorSprite, FRAME_HEIGHT, RoomRenderer};
 
 const SPEECH_WRAP_WIDTH: f32 = 160.0;
 const TEXT_SIZE: f32 = 8.0;
@@ -33,12 +32,12 @@ struct View {
 
 impl View {
     fn fit(width: f32, height: f32) -> Self {
-        let scale = (width / VIRTUAL_WIDTH).min(height / VIRTUAL_HEIGHT);
+        let scale = (width / SCREEN_WIDTH).min(height / SCREEN_HEIGHT);
         View {
             scale,
             offset: vec2(
-                (width - VIRTUAL_WIDTH * scale) / 2.0,
-                (height - VIRTUAL_HEIGHT * scale) / 2.0,
+                (width - SCREEN_WIDTH * scale) / 2.0,
+                (height - SCREEN_HEIGHT * scale) / 2.0,
             ),
         }
     }
@@ -51,7 +50,7 @@ impl View {
     fn screen_to_window(&self, point: Vec2) -> Vec2 {
         vec2(
             self.offset.x + point.x * self.scale,
-            self.offset.y + (VIRTUAL_HEIGHT - point.y) * self.scale,
+            self.offset.y + (SCREEN_HEIGHT - point.y) * self.scale,
         )
     }
 
@@ -64,7 +63,7 @@ impl View {
     fn window_to_screen(&self, window: Vec2) -> Vec2 {
         vec2(
             (window.x - self.offset.x) / self.scale,
-            VIRTUAL_HEIGHT - (window.y - self.offset.y) / self.scale,
+            SCREEN_HEIGHT - (window.y - self.offset.y) / self.scale,
         )
     }
 }
@@ -125,7 +124,7 @@ impl Game {
     fn draw(&self, target: &RenderTarget, view: &View, output: Option<&RenderTarget>) {
         let camera = |top: f32| Camera2D {
             render_target: Some(target.clone()),
-            ..Camera2D::from_display_rect(Rect::new(0.0, top, VIRTUAL_WIDTH, VIRTUAL_HEIGHT))
+            ..Camera2D::from_display_rect(Rect::new(0.0, top, SCREEN_WIDTH, SCREEN_HEIGHT))
         };
 
         // The room is drawn shifted up so that its bottom edge sits on top of the panel.
@@ -159,10 +158,7 @@ impl Game {
             view.offset.y,
             WHITE,
             DrawTextureParams {
-                dest_size: Some(vec2(
-                    VIRTUAL_WIDTH * view.scale,
-                    VIRTUAL_HEIGHT * view.scale,
-                )),
+                dest_size: Some(vec2(SCREEN_WIDTH * view.scale, SCREEN_HEIGHT * view.scale)),
                 flip_y: true,
                 ..Default::default()
             },
@@ -184,11 +180,11 @@ impl Game {
     /// Items are squares of their colour until there is icon art.
     fn draw_panel(&self) {
         let session = &self.session;
-        let top = |rect: Rect| VIRTUAL_HEIGHT - (rect.y + rect.h);
+        let top = |rect: Rect| SCREEN_HEIGHT - (rect.y + rect.h);
         draw_rectangle(
             0.0,
-            VIRTUAL_HEIGHT - ui::PANEL_HEIGHT,
-            VIRTUAL_WIDTH,
+            SCREEN_HEIGHT - ui::PANEL_HEIGHT,
+            SCREEN_WIDTH,
             ui::PANEL_HEIGHT,
             PANEL_COLOR,
         );
@@ -209,7 +205,7 @@ impl Game {
                 Color::new(1.0, 1.0, 1.0, 0.1)
             };
             draw_rectangle(slot.x, top(slot), slot.w, slot.h, shade);
-            let color = session.items.get(id).map_or(GRAY, |item| item.color);
+            let color = session.items.color(id);
             draw_rectangle(
                 slot.x + 4.0,
                 top(slot) + 2.0,
@@ -227,7 +223,7 @@ impl Game {
         let Some(id) = &session.holding else {
             return;
         };
-        let color = session.items.get(id).map_or(GRAY, |item| item.color);
+        let color = session.items.color(id);
         let corner = cursor + self.cursor.size() * view.scale * CURSOR_SCALE;
         let size = HELD_ICON_SIZE * view.scale;
         draw_rectangle(corner.x.round(), corner.y.round(), size, size, color);
@@ -252,9 +248,9 @@ impl Game {
         let ascent = measure_text("Ag", None, size, 1.0).offset_y;
 
         let feet = self.session.player.position();
-        let left = (feet.x - SPEECH_WRAP_WIDTH / 2.0).clamp(0.0, VIRTUAL_WIDTH - SPEECH_WRAP_WIDTH);
+        let left = (feet.x - SPEECH_WRAP_WIDTH / 2.0).clamp(0.0, SCREEN_WIDTH - SPEECH_WRAP_WIDTH);
         let block_height = lines.len() as f32 * line_height / view.scale;
-        let visible_top = VIRTUAL_HEIGHT - ui::PANEL_HEIGHT;
+        let visible_top = SCREEN_HEIGHT - ui::PANEL_HEIGHT;
         let top = (feet.y + FRAME_HEIGHT + 4.0 + block_height).min(visible_top);
         let origin = view.room_to_window(vec2(left, top));
 
@@ -399,7 +395,7 @@ async fn main() {
         })
     });
 
-    let target = render_target(VIRTUAL_WIDTH as u32, VIRTUAL_HEIGHT as u32);
+    let target = render_target(SCREEN_WIDTH as u32, SCREEN_HEIGHT as u32);
     target.texture.set_filter(FilterMode::Nearest);
     let screenshot_target = automation
         .is_some()

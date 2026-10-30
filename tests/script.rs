@@ -5,18 +5,9 @@ use macroquad::math::vec2;
 
 const DELTA: f32 = 0.05;
 
-fn floor_outline() -> Vec<macroquad::math::Vec2> {
-    vec![
-        vec2(0.0, 0.0),
-        vec2(200.0, 0.0),
-        vec2(200.0, 100.0),
-        vec2(0.0, 100.0),
-    ]
-}
+mod common;
 
-fn floor() -> Room {
-    Room::new(floor_outline(), vec![])
-}
+use common::{floor, floor_outline};
 
 fn step(runner: &mut ScriptRunner, room: &Room, actor: &mut Actor) {
     actor.update(DELTA);
@@ -260,4 +251,50 @@ fn animate_uses_the_props_fps_from_the_room_unless_given() {
         step(&mut runner, &room, &mut actor);
     }
     assert!(!world.is_animating("door"));
+}
+
+#[test]
+fn scripts_cannot_reach_the_file_system_or_load_code() {
+    let mut runner = ScriptRunner::new().unwrap();
+    runner
+        .load_definitions(
+            "test",
+            "assert(os == nil and io == nil and debug == nil and package == nil)
+             assert(load == nil and loadfile == nil and dofile == nil and require == nil)
+             assert(coroutine and math and string and table)",
+        )
+        .unwrap();
+}
+
+#[test]
+fn non_finite_numbers_are_refused_so_a_script_cannot_stall_the_game() {
+    let room = floor();
+    for source in [
+        "wait(0/0)",
+        "walkTo(1/0, 5)",
+        "animate('d', 0, 1, 0/0)",
+        "enterRoom('x', 0/0, 0)",
+    ] {
+        let mut actor = Actor::new(10.0, 50.0);
+        let mut runner = ScriptRunner::new().unwrap();
+        runner.start("test", source).unwrap();
+        step(&mut runner, &room, &mut actor);
+        assert!(!runner.is_running(), "{source}");
+    }
+}
+
+#[test]
+fn animate_can_play_backwards_through_lua() {
+    let room = floor();
+    let mut actor = Actor::new(10.0, 50.0);
+    let world = game::world::World::default();
+    let mut runner = ScriptRunner::with_world(world.clone()).unwrap();
+    runner
+        .start("test", "setFrame('door', 3) animate('door', 3, 0, 20)")
+        .unwrap();
+    for _ in 0..40 {
+        step(&mut runner, &room, &mut actor);
+    }
+    assert!(!runner.is_running());
+    assert_eq!(world.frame("door"), 0);
 }

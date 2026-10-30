@@ -11,7 +11,7 @@ use crate::ui;
 use crate::world::World;
 
 /// Rooms are `rooms/<id>.lua` with their handlers in `scripts/<id>.lua`; scripts name them by id.
-const ROOMS: [&str; 2] = ["hall", "closet"];
+pub const ROOMS: [&str; 2] = ["hall", "closet"];
 const START_ROOM: &str = "hall";
 const INTRO_SCRIPT: &str = "scripts/intro.lua";
 const ITEMS: &str = "items.lua";
@@ -163,7 +163,8 @@ impl Session {
     /// click of a double click. With an item held (picked by double clicking it) the next click uses
     /// it on what is under it; that is never cut short, as a half-finished script could lose items.
     pub fn click(&mut self, point: Vec2) {
-        let double = self.is_double_click(point) && self.holding.is_none();
+        let holding = self.holding.is_some();
+        let double = self.is_double_click(point) && !holding;
         let busy = self.scripts.is_running();
         if ui::in_panel(point) {
             if let Some(item) = self.item_at(point) {
@@ -171,6 +172,10 @@ impl Session {
             }
         } else {
             self.click_room(ui::to_room(point), double, busy);
+        }
+        // Using a held item must not be cut short by a second quick click on the same target.
+        if holding {
+            self.last_click = None;
         }
     }
 

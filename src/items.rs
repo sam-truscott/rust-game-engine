@@ -1,5 +1,5 @@
 use macroquad::color::Color;
-use mlua::{Lua, Table};
+use mlua::Table;
 
 const DEFAULT_COLOR: Color = Color::new(0.7, 0.7, 0.7, 1.0);
 
@@ -17,7 +17,7 @@ pub struct Items(Vec<Item>);
 impl Items {
     /// Reads `assets/items.lua`: `{ brass_key = { name = "brass key", color = { r, g, b } }, ... }`.
     pub fn from_lua(source: &str, name: &str) -> mlua::Result<Self> {
-        let lua = Lua::new();
+        let lua = crate::script::data_lua()?;
         let table: Table = lua.load(source).set_name(name).eval()?;
 
         let mut items = Vec::new();
@@ -41,6 +41,11 @@ impl Items {
 
     pub fn get(&self, id: &str) -> Option<&Item> {
         self.0.iter().find(|item| item.id == id)
+    }
+
+    /// The colour an item is drawn in; items missing from the file are grey.
+    pub fn color(&self, id: &str) -> Color {
+        self.get(id).map_or(DEFAULT_COLOR, |item| item.color)
     }
 
     /// The item's name, or the id itself if it is not in the file.

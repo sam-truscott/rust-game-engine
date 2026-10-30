@@ -2,13 +2,9 @@ use game::pathfinder::is_visible;
 use game::room::{Room, offset};
 use macroquad::math::{Vec2, vec2};
 
-fn ring(points: &[(f32, f32)]) -> Vec<Vec2> {
-    points.iter().map(|&(x, y)| vec2(x, y)).collect()
-}
+mod common;
 
-fn floor() -> Vec<Vec2> {
-    ring(&[(0.0, 0.0), (200.0, 0.0), (200.0, 100.0), (0.0, 100.0)])
-}
+use common::{assert_close, floor_outline as floor, ring};
 
 fn block() -> Vec<Vec2> {
     ring(&[(80.0, 30.0), (120.0, 30.0), (120.0, 70.0), (80.0, 70.0)])
@@ -41,13 +37,6 @@ fn assert_walkable(room: &Room, start: Vec2, path: &[Vec2]) {
         assert!(is_visible(room, previous, point), "{previous} -> {point}");
         previous = point;
     }
-}
-
-fn assert_close(actual: f32, expected: f32) {
-    assert!(
-        (actual - expected).abs() < 1e-3,
-        "expected {expected}, got {actual}"
-    );
 }
 
 fn assert_rings_close(actual: &[Vec2], expected: &[(f32, f32)]) {

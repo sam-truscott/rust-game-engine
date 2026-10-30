@@ -1,5 +1,5 @@
 use macroquad::math::{Rect, Vec2, vec2};
-use mlua::{Lua, Table};
+use mlua::Table;
 
 use crate::pathfinder;
 
@@ -116,77 +116,43 @@ impl Room {
 
     /// Reads a room from the table a `rooms/*.lua` file returns.
     pub fn from_lua(source: &str, name: &str) -> mlua::Result<Self> {
-        let lua = Lua::new();
+        let lua = crate::script::data_lua()?;
         let table: Table = lua.load(source).set_name(name).eval()?;
 
-        let walk_area: Table = table.get("walkArea")?;
-        let outline = read_points(&walk_area)?;
+        let outline = read_points(&table.get("walkArea")?)?;
+        let obstacles = list(&table, "obstacles", |ring| read_points(&ring))?;
+        let props = list(&table, "props", |prop| {
+            let y: f32 = prop.get("y")?;
+            Ok(Prop {
+                id: prop.get("id")?,
+                image: prop.get("image")?,
+                x: prop.get("x")?,
+                y,
+                depth: prop.get::<Option<f32>>("depth")?.unwrap_or(y),
+                frames: prop.get::<Option<usize>>("frames")?.unwrap_or(1).max(1),
+                fps: prop.get::<Option<f32>>("fps")?.unwrap_or(DEFAULT_FPS),
+                glow: prop.get::<Option<bool>>("glow")?.unwrap_or(false),
+            })
+        })?;
+        let hotspots = list(&table, "hotspots", |hotspot| {
+            let rect: Table = hotspot.get("rect")?;
+            let walk_to: Option<Table> = hotspot.get("walkTo")?;
+            Ok(Hotspot {
+                id: hotspot.get("id")?,
+                name: hotspot.get("name")?,
+                rect: Rect::new(rect.get(1)?, rect.get(2)?, rect.get(3)?, rect.get(4)?),
+                walk_to: walk_to
+                    .map(|point| Ok::<_, mlua::Error>(vec2(point.get(1)?, point.get(2)?)))
+                    .transpose()?,
+            })
+        })?;
 
-        let mut obstacles = Vec::new();
-        let obstacle_tables: Option<Table> = table.get("obstacles")?;
-        if let Some(obstacle_tables) = obstacle_tables {
-            for ring in obstacle_tables.sequence_values::<Table>() {
-                obstacles.push(read_points(&ring?)?);
-            }
-        }
-
-        let mut props = Vec::new();
-        let prop_tables: Option<Table> = table.get("props")?;
-        if let Some(prop_tables) = prop_tables {
-            for prop in prop_tables.sequence_values::<Table>() {
-                let prop = prop?;
-                let id: Option<String> = prop.get("id")?;
-                let image: String = prop.get("image")?;
-                let x: f32 = prop.get("x")?;
-                let y: f32 = prop.get("y")?;
-                let depth: Option<f32> = prop.get("depth")?;
-                let frames: Option<usize> = prop.get("frames")?;
-                let fps: Option<f32> = prop.get("fps")?;
-                let glow: Option<bool> = prop.get("glow")?;
-                props.push(Prop {
-                    id,
-                    image,
-                    x,
-                    y,
-                    depth: depth.unwrap_or(y),
-                    frames: frames.unwrap_or(1).max(1),
-                    fps: fps.unwrap_or(DEFAULT_FPS),
-                    glow: glow.unwrap_or(false),
-                });
-            }
-        }
-
-        let mut hotspots = Vec::new();
-        let hotspot_tables: Option<Table> = table.get("hotspots")?;
-        if let Some(hotspot_tables) = hotspot_tables {
-            for hotspot in hotspot_tables.sequence_values::<Table>() {
-                let hotspot = hotspot?;
-                let id: String = hotspot.get("id")?;
-                let name: String = hotspot.get("name")?;
-                let rect: Table = hotspot.get("rect")?;
-                let (x, y): (f32, f32) = (rect.get(1)?, rect.get(2)?);
-                let (w, h): (f32, f32) = (rect.get(3)?, rect.get(4)?);
-                let walk_to: Option<Table> = hotspot.get("walkTo")?;
-                let walk_to = match walk_to {
-                    Some(point) => Some(vec2(point.get(1)?, point.get(2)?)),
-                    None => None,
-                };
-                hotspots.push(Hotspot {
-                    id,
-                    name,
-                    rect: Rect::new(x, y, w, h),
-                    walk_to,
-                });
-            }
-        }
-
-        let margin: Option<f32> = table.get("margin")?;
-        let background: Option<String> = table.get("background")?;
-        let dark: Option<bool> = table.get("dark")?;
+        let margin = table.get::<Option<f32>>("margin")?.unwrap_or(0.0);
+        let dark = table.get::<Option<bool>>("dark")?.unwrap_or(false);
         Ok(
-            Self::with_options(outline, obstacles, margin.unwrap_or(0.0), background, props)
+            Self::with_options(outline, obstacles, margin, table.get("background")?, props)
                 .with_hotspots(hotspots)
-                .with_dark(dark.unwrap_or(false)),
+                .with_dark(dark),
         )
     }
 
@@ -287,8 +253,24 @@ impl Room {
     }
 }
 
+/// Reads each table in the optional list `key` of a room file with `read`.
+fn list<T>(
+    table: &Table,
+    key: &str,
+    read: impl Fn(Table) -> mlua::Result<T>,
+) -> mlua::Result<Vec<T>> {
+    let items: Option<Table> = table.get(key)?;
+    items.map_or(Ok(Vec::new()), |items| {
+        items
+            .sequence_values::<Table>()
+            .map(|item| read(item?))
+            .collect()
+    })
+}
+
+/// A ring of at least three finite points.
 fn read_points(points: &Table) -> mlua::Result<Vec<Vec2>> {
-    points
+    let ring: Vec<Vec2> = points
         .sequence_values::<Table>()
         .map(|point| {
             let point = point?;
@@ -296,7 +278,13 @@ fn read_points(points: &Table) -> mlua::Result<Vec<Vec2>> {
             let y: f32 = point.get(2)?;
             Ok(vec2(x, y))
         })
-        .collect()
+        .collect::<mlua::Result<_>>()?;
+    if ring.len() < 3 || ring.iter().any(|p| !p.is_finite()) {
+        return Err(mlua::Error::runtime(
+            "an outline needs at least 3 finite points",
+        ));
+    }
+    Ok(ring)
 }
 
 /// Moves every edge of the ring outwards by the distance (inwards if negative), mitring the corners.

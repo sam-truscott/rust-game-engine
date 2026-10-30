@@ -114,12 +114,17 @@ fn parse(text: &str) -> Result<VecDeque<Step>, String> {
                 Some("f1") => Step::ToggleDebug,
                 _ => return Err(fail("key must be r or f1")),
             },
-            "shot" => Step::Shot(
-                words
-                    .get(1)
-                    .ok_or_else(|| fail("expected a name"))?
-                    .to_string(),
-            ),
+            // The name becomes a file name in the output directory, so it cannot be a path.
+            "shot" => match words.get(1) {
+                Some(name)
+                    if name
+                        .chars()
+                        .all(|c| c.is_ascii_alphanumeric() || "_-".contains(c)) =>
+                {
+                    Step::Shot(name.to_string())
+                }
+                _ => return Err(fail("expected a name of letters, digits, _ and -")),
+            },
             "where" => Step::Where,
             "quit" => Step::Quit,
             _ => return Err(fail("unknown command")),
@@ -163,6 +168,9 @@ mod tests {
         assert!(parse("click 5\n").is_err());
         assert!(parse("key x\n").is_err());
         assert!(parse("shot\n").is_err());
+        assert!(parse("shot ../x\n").is_err());
+        assert!(parse("shot a/b\n").is_err());
+        assert!(parse("shot ok_1-a\n").is_ok());
     }
 
     #[test]

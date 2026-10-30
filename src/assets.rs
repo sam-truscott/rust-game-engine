@@ -7,7 +7,11 @@ use rust_embed::RustEmbed;
 #[folder = "assets/"]
 struct Embedded;
 
+/// Paths come from room and script files, so ones that leave `assets/` are refused.
 pub fn bytes(path: &str) -> Option<Cow<'static, [u8]>> {
+    if path.starts_with('/') || path.contains(['\\', ':']) || path.contains("..") {
+        return None;
+    }
     Embedded::get(path).map(|file| file.data)
 }
 
