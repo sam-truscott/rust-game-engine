@@ -116,11 +116,10 @@ impl Session {
         ui::sentence(verb, held, self.hovered_name().as_deref())
     }
 
-    /// Clicks are ignored while a script runs.
+    /// Choosing things (a verb, an item to use) always works, so a click is never lost while the
+    /// player is still walking or talking. Clicks that would start something wait until it is over.
     pub fn click(&mut self, point: Vec2) {
-        if self.scripts.is_running() {
-            return;
-        }
+        let busy = self.scripts.is_running();
         if let Some(verb) = ui::verb_at(point) {
             self.verb = verb;
             self.holding = None;
@@ -131,11 +130,17 @@ impl Session {
         }
         if ui::in_inventory(point) {
             if let Some(item) = self.item_at(point) {
-                self.click_item(&item);
+                if !busy {
+                    self.click_item(&item);
+                } else if self.verb == Verb::Use && self.holding.is_none() {
+                    self.holding = Some(item);
+                }
             }
             return;
         }
-        self.click_room(point);
+        if !busy {
+            self.click_room(point);
+        }
     }
 
     /// After something is done the verb goes back to "Walk to" and nothing is held.

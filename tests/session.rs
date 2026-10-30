@@ -108,13 +108,83 @@ fn the_other_verbs_still_go_to_the_objects_standing_spot() {
 }
 
 #[test]
-fn clicks_are_ignored_while_the_intro_runs() {
+fn actions_wait_while_the_intro_runs_but_choosing_a_verb_does_not() {
     let mut session = Session::load().unwrap();
     assert!(session.scripts.is_running());
-    click(&mut session, PICK_UP);
-    assert_eq!(session.verb, Verb::WalkTo);
+
     click(&mut session, FLOOR);
     assert!(!session.player.is_walking());
+
+    click(&mut session, PICK_UP);
+    assert_eq!(session.verb, Verb::PickUp);
+}
+
+#[test]
+fn a_verb_can_be_chosen_while_an_action_is_still_playing_out() {
+    let mut session = session();
+    click(&mut session, PICK_UP);
+    click(&mut session, KEY);
+    assert!(session.scripts.is_running());
+    assert_eq!(next_words(&mut session), "Got it.");
+    assert!(session.scripts.is_running());
+
+    click(&mut session, LOOK_AT);
+    assert_eq!(session.verb, Verb::LookAt);
+
+    settle(&mut session);
+    assert_eq!(
+        session.verb,
+        Verb::LookAt,
+        "the choice must survive the action ending"
+    );
+}
+
+#[test]
+fn a_verb_can_be_chosen_while_walking_to_something() {
+    let mut session = session();
+    click(&mut session, LOOK_AT);
+    click(&mut session, COUNTER);
+    session.update(STEP);
+    assert!(session.scripts.is_running());
+    assert!(session.player.is_walking());
+
+    click(&mut session, USE);
+    assert_eq!(session.verb, Verb::Use);
+}
+
+#[test]
+fn an_item_can_be_picked_for_use_while_an_action_is_still_playing_out() {
+    let mut session = session();
+    click(&mut session, PICK_UP);
+    click(&mut session, KEY);
+    assert_eq!(next_words(&mut session), "Got it.");
+    assert!(session.scripts.is_running());
+
+    click(&mut session, USE);
+    click(&mut session, SLOT_0);
+    assert_eq!(session.holding.as_deref(), Some("brass_key"));
+
+    settle(&mut session);
+    assert_eq!(session.holding.as_deref(), Some("brass_key"));
+    click(&mut session, COUNTER);
+    assert_eq!(next_words(&mut session), "The key fits the drawer!");
+}
+
+#[test]
+fn things_that_start_something_are_still_ignored_while_a_script_runs() {
+    let mut session = session();
+    click(&mut session, PICK_UP);
+    click(&mut session, KEY);
+    assert_eq!(next_words(&mut session), "Got it.");
+
+    click(&mut session, LOOK_AT);
+    click(&mut session, SLOT_0);
+    click(&mut session, COUNTER);
+    click(&mut session, FLOOR);
+    assert!(!session.player.is_walking());
+    settle(&mut session);
+    assert_eq!(session.world.items(), vec!["brass_key"]);
+    assert_eq!(session.player.position(), vec2(46.0, 30.0));
 }
 
 #[test]
