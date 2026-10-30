@@ -45,6 +45,7 @@ pub struct Session {
     last_click: Option<(f32, Vec2)>,
     /// Set when a script started that a click must not cut short (using an item, interacting).
     committed: bool,
+    committed_at: f32,
     room_changed: bool,
 }
 
@@ -88,6 +89,7 @@ impl Session {
             clock: 0.0,
             last_click: None,
             committed: false,
+            committed_at: 0.0,
             room_changed: false,
         })
     }
@@ -189,7 +191,8 @@ impl Session {
     }
 
     /// A click at a screen point (see `ui`). A single click looks at what is under it, or walks if
-    /// there is nothing; a double click interacts with it. The single click has already started
+    /// there is nothing; a double click interacts with it (through a door at once, or jumps to the spot if there is
+    /// nothing). The single click has already started
     /// looking by the time the second arrives, so that is cancelled in favour of interacting.
     ///
     /// While an action (using an item, interacting) runs a click only skips the current speech line. Other clicks that
@@ -201,8 +204,11 @@ impl Session {
             self.committed = false;
         }
         if self.input_locked() {
-            // A click skips the line being spoken; the script then goes on to its next line or ends.
-            self.player.stop_speaking();
+            if self.clock - self.committed_at > DOUBLE_CLICK_SECONDS {
+                // A click skips the line being spoken; the script goes on to its next line or ends.
+                // Not for the click that is part of starting the action (a double click).
+                self.player.stop_speaking();
+            }
             return;
         }
         let holding = self.holding.is_some();
@@ -219,6 +225,25 @@ impl Session {
         if holding {
             self.last_click = None;
         }
+    }
+
+    /// Plays the running action at speed until it changes the room, up to a minute of game time;
+    /// anything else it does on the way (walking, speech) happens as usual. Without a room change
+    /// the action is left running where it got to.
+    fn fast_forward_to_room_change(&mut self) {
+        self.room_changed = false;
+        for _ in 0..1200 {
+            self.player.stop_speaking();
+            self.update(0.05);
+            if self.room_changed || !self.scripts.is_running() {
+                break;
+            }
+        }
+    }
+
+    fn commit(&mut self) {
+        self.committed = true;
+        self.committed_at = self.clock;
     }
 
     /// Whether an action is running that ignores all clicks; the cursor is drawn faded meanwhile.
@@ -238,7 +263,7 @@ impl Session {
                 return;
             }
             self.holding = None;
-            self.committed = true;
+            self.commit();
             let started = if held == item {
                 self.scripts.interact_item(item, INTERACT)
             } else {
@@ -260,7 +285,7 @@ impl Session {
                 return;
             }
             self.holding = None;
-            self.committed = true;
+            self.commit();
             if let Some(hotspot) = hotspot {
                 let walk_to = hotspot.walk_to.or(Some(point));
                 report(
@@ -275,15 +300,21 @@ impl Session {
                 let verb = if double { INTERACT } else { LOOK };
                 if double {
                     self.interrupt();
-                    self.committed = true;
+                    self.commit();
                 }
                 let walk_to = hotspot.walk_to.or(Some(point));
                 report(
                     &hotspot.id,
                     self.scripts.interact(&hotspot.id, verb, walk_to),
                 );
+                if double && hotspot.door {
+                    self.fast_forward_to_room_change();
+                }
             }
             Some(_) => {}
+            None if double && !busy => {
+                self.player.teleport(&self.room, point.x, point.y);
+            }
             None if !busy => self.player.walk_to(&self.room, point.x, point.y),
             None => {}
         }

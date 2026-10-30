@@ -35,7 +35,7 @@ return {
     { id = "table", name = "table", rect = { 52, 40, 66, 34 }, walkTo = { 85, 30 } },
     { id = "cupboard", name = "cupboard", rect = { 30, 80, 30, 50 }, walkTo = { 45, 70 } },
     { id = "window", name = "window", rect = { 64, 118, 46, 34 }, walkTo = { 88, 80 } },
-    { id = "door", name = "door", rect = { 120, 96, 32, 54 }, walkTo = { 136, 90 } },
+    { id = "door", name = "door", door = true, rect = { 120, 96, 32, 54 }, walkTo = { 136, 90 } },
     { id = "bottles", name = "bottles", rect = { 166, 100, 148, 50 }, walkTo = { 240, 40 } },
     { id = "bar", name = "bar", rect = { 160, 52, 160, 36 }, walkTo = { 240, 40 } },
     { id = "barman", name = "barman", rect = { 238, 84, 26, 28 }, walkTo = { 224, 44 } },

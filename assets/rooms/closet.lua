@@ -19,6 +19,6 @@ return {
     { id = "shelf", name = "shelf", rect = { 124, 58, 32, 40 }, walkTo = { 146, 24 } },
     { id = "key", name = "brass key", rect = { 145, 62, 12, 8 }, walkTo = { 150, 24 } },
     { id = "switch", name = "light switch", rect = { 155, 61, 10, 14 }, walkTo = { 160, 26 } },
-    { id = "door", name = "door", rect = { 164, 36, 32, 54 }, walkTo = { 180, 28 } },
+    { id = "door", name = "door", door = true, rect = { 164, 36, 32, 54 }, walkTo = { 180, 28 } },
   },
 }

@@ -55,6 +55,12 @@ impl Actor {
         self.path = room.find_path(self.position, x, y).into();
     }
 
+    /// Puts the actor at the nearest walkable point to x, y, with no walk.
+    pub fn teleport(&mut self, room: &Room, x: f32, y: f32) {
+        self.position = room.constrain(x, y);
+        self.path.clear();
+    }
+
     pub fn is_walking(&self) -> bool {
         !self.path.is_empty()
     }

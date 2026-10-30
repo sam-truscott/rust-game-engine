@@ -626,3 +626,21 @@ fn the_other_patrons_can_be_looked_at() {
         assert_ne!(next_words(&mut session), "I see nothing special.", "{id}");
     }
 }
+
+#[test]
+fn a_double_click_on_a_door_goes_straight_through_it() {
+    let mut session = session();
+    double_click(&mut session, point("hall", "door"));
+    assert_eq!(session.room_id, "closet");
+    assert!(session.take_room_changed());
+    assert_eq!(session.player.position(), stand("closet", "door"));
+}
+
+#[test]
+fn a_double_click_on_the_floor_jumps_there() {
+    let mut session = session();
+    let target = vec2(60.0, 30.0);
+    double_click(&mut session, vec2(target.x, target.y + PANEL_HEIGHT));
+    assert_eq!(session.player.position(), target);
+    assert!(!session.player.is_walking());
+}

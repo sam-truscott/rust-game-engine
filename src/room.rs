@@ -53,6 +53,8 @@ pub struct Hotspot {
     pub name: String,
     pub rect: Rect,
     pub walk_to: Option<Vec2>,
+    /// A double click on a door goes straight through it.
+    pub door: bool,
 }
 
 /// A room: a walkable outline (possibly concave) with obstacle holes, plus the images drawn for it.
@@ -161,6 +163,7 @@ impl Room {
             Ok(Hotspot {
                 id: hotspot.get("id")?,
                 name: hotspot.get("name")?,
+                door: hotspot.get::<Option<bool>>("door")?.unwrap_or(false),
                 rect: Rect::new(rect.get(1)?, rect.get(2)?, rect.get(3)?, rect.get(4)?),
                 walk_to: walk_to
                     .map(|point| Ok::<_, mlua::Error>(vec2(point.get(1)?, point.get(2)?)))
