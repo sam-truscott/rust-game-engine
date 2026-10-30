@@ -4,3 +4,4 @@ pub mod direction;
 pub mod pathfinder;
 pub mod room;
 pub mod script;
+pub mod ui;

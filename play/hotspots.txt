@@ -1,0 +1,34 @@
+# Hover over things, pick verbs and use them on the counter and the window.
+# Run: target/debug/game.exe --auto play/hotspots.txt --out screenshots
+# Buttons (game coordinates, centres): Walk to 28,156  Look at 80,156  Pick up 132,156
+#                                      Use 184,156     Open 236,156    Talk to 288,156
+wait 3
+move 160 70
+shot h1_hover               # sentence: Walk to counter
+click 80 156
+move 160 70
+shot h2_look_selected       # Look at highlighted; sentence: Look at counter
+click 160 70
+wait 0.6
+shot h3_walking_to_counter
+wait 2.5
+shot h4_looking             # standing in front of the counter, speaking
+where                       # (160, 30), speaking, handler still running
+wait 4
+where                       # verb back to WalkTo, nothing running
+
+click 236 156               # Open
+click 256 75                # the window
+wait 2.5
+shot h5_window_open         # at the window's spot (256, 40), "It's only a frame."
+wait 3
+where                       # (256, 40), nothing running
+
+click 288 156               # Talk to: the counter has no handler for it
+click 160 70
+wait 2.5
+shot h6_default_reply       # "I can't do that."
+wait 3
+click 106 156               # on the bar, in the gap between two buttons: nothing happens
+where                       # verb still WalkTo, player has not moved
+quit

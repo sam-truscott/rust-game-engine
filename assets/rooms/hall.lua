@@ -15,4 +15,8 @@ return {
     { image = "props/counter.png", x = 120, y = 45 },
     { image = "props/window.png", x = 232, y = 55 },
   },
+  hotspots = {
+    { id = "counter", name = "counter", rect = { 120, 45, 80, 55 }, walkTo = { 160, 30 } },
+    { id = "window", name = "window", rect = { 232, 55, 48, 48 }, walkTo = { 256, 40 } },
+  },
 }

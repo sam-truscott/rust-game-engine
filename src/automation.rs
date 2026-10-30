@@ -3,7 +3,8 @@
 //!
 //! ```text
 //! wait 3.0        game-time seconds to let pass
-//! click 256 72    left click at a game position (320x180, y up)
+//! move 160 70     put the cursor at a game position (320x180, y up), to hover
+//! click 256 72    left click at a game position (also moves the cursor there)
 //! key r           restart (r) or toggle the walk-area overlay (f1)
 //! shot name       save <out>/name.png (1280x720)
 //! where           print the player's position and state
@@ -20,6 +21,8 @@ pub const FIXED_DELTA: f32 = 1.0 / 60.0;
 
 #[derive(Default)]
 pub struct Inputs {
+    /// Where the cursor is now, if it moved.
+    pub cursor: Option<Vec2>,
     pub click: Option<Vec2>,
     pub restart: bool,
     pub toggle_debug: bool,
@@ -36,6 +39,7 @@ pub struct Frame {
 #[derive(Debug, PartialEq)]
 enum Step {
     Wait(f32),
+    Move(Vec2),
     Click(Vec2),
     Restart,
     ToggleDebug,
@@ -69,7 +73,11 @@ impl Automation {
         }
         match self.steps.pop_front() {
             Some(Step::Wait(seconds)) => self.waiting = seconds,
-            Some(Step::Click(position)) => frame.inputs.click = Some(position),
+            Some(Step::Move(position)) => frame.inputs.cursor = Some(position),
+            Some(Step::Click(position)) => {
+                frame.inputs.cursor = Some(position);
+                frame.inputs.click = Some(position);
+            }
             Some(Step::Restart) => frame.inputs.restart = true,
             Some(Step::ToggleDebug) => frame.inputs.toggle_debug = true,
             Some(Step::Shot(name)) => frame.shot = Some(self.out_dir.join(format!("{name}.png"))),
@@ -98,6 +106,7 @@ fn parse(text: &str) -> Result<VecDeque<Step>, String> {
 
         steps.push_back(match words[0] {
             "wait" => Step::Wait(number_at(1)?),
+            "move" => Step::Move(vec2(number_at(1)?, number_at(2)?)),
             "click" => Step::Click(vec2(number_at(1)?, number_at(2)?)),
             "key" => match words.get(1).copied() {
                 Some("r") => Step::Restart,
@@ -125,13 +134,14 @@ mod tests {
     #[test]
     fn parses_every_command_and_skips_comments() {
         let steps = parse(
-            "# intro\nwait 1.5\n\nclick 10 20  # to the left\nkey r\nkey f1\nshot a\nwhere\nquit\n",
+            "# intro\nwait 1.5\n\nmove 5 6\nclick 10 20  # to the left\nkey r\nkey f1\nshot a\nwhere\nquit\n",
         )
         .unwrap();
         assert_eq!(
             steps,
             vec![
                 Step::Wait(1.5),
+                Step::Move(vec2(5.0, 6.0)),
                 Step::Click(vec2(10.0, 20.0)),
                 Step::Restart,
                 Step::ToggleDebug,

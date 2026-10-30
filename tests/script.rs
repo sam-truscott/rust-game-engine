@@ -103,6 +103,127 @@ fn a_script_that_errors_does_not_stop_the_others() {
     assert!(runner.is_running());
 }
 
+/// Steps until the actor speaks; returns what it said and where it was standing.
+fn run_until_speech(
+    runner: &mut ScriptRunner,
+    room: &Room,
+    actor: &mut Actor,
+) -> Option<(String, macroquad::math::Vec2)> {
+    for _ in 0..600 {
+        step(runner, room, actor);
+        if let Some(text) = actor.speech() {
+            return Some((text.to_owned(), actor.position()));
+        }
+    }
+    None
+}
+
+#[test]
+fn an_interaction_walks_to_the_spot_and_then_runs_the_handler() {
+    let room = floor();
+    let mut actor = Actor::new(10.0, 50.0);
+    let mut runner = ScriptRunner::new().unwrap();
+    runner
+        .load_definitions(
+            "defs",
+            "hotspot.box = { look = function() say('a box') end }",
+        )
+        .unwrap();
+    runner
+        .interact("box", "look", Some(vec2(60.0, 50.0)))
+        .unwrap();
+
+    let (said, at) = run_until_speech(&mut runner, &room, &mut actor).expect("never spoke");
+    assert_eq!(said, "a box");
+    assert!((at.x - 60.0).abs() < 1e-3, "spoke before arriving: {at}");
+}
+
+#[test]
+fn a_handler_can_wait_and_speak_more_than_once() {
+    let room = floor();
+    let mut actor = Actor::new(10.0, 50.0);
+    let mut runner = ScriptRunner::new().unwrap();
+    runner
+        .load_definitions(
+            "defs",
+            "hotspot.box = { look = function() say('one') wait(0.2) say('two') end }",
+        )
+        .unwrap();
+    runner.interact("box", "look", None).unwrap();
+
+    let mut said = Vec::new();
+    for _ in 0..400 {
+        step(&mut runner, &room, &mut actor);
+        if let Some(text) = actor.speech()
+            && said.last().map(String::as_str) != Some(text)
+        {
+            said.push(text.to_owned());
+        }
+        if !runner.is_running() {
+            break;
+        }
+    }
+    assert_eq!(said, vec!["one", "two"]);
+}
+
+#[test]
+fn without_a_handler_looking_and_other_verbs_get_default_replies() {
+    let room = floor();
+    for (verb, expected) in [
+        ("look", "I see nothing special."),
+        ("use", "I can't do that."),
+        ("pickup", "I can't do that."),
+    ] {
+        let mut actor = Actor::new(10.0, 50.0);
+        let mut runner = ScriptRunner::new().unwrap();
+        runner
+            .load_definitions(
+                "defs",
+                "hotspot.box = { open = function() say('opened') end }",
+            )
+            .unwrap();
+        runner.interact("box", verb, None).unwrap();
+        let (said, _) = run_until_speech(&mut runner, &room, &mut actor).expect("never spoke");
+        assert_eq!(said, expected, "verb {verb}");
+    }
+}
+
+#[test]
+fn an_unknown_hotspot_gets_the_default_reply() {
+    let room = floor();
+    let mut actor = Actor::new(10.0, 50.0);
+    let mut runner = ScriptRunner::new().unwrap();
+    runner.interact("nothing", "look", None).unwrap();
+    let (said, _) = run_until_speech(&mut runner, &room, &mut actor).expect("never spoke");
+    assert_eq!(said, "I see nothing special.");
+}
+
+#[test]
+fn walking_to_a_hotspot_walks_without_speaking() {
+    let room = floor();
+    let mut actor = Actor::new(10.0, 50.0);
+    let mut runner = ScriptRunner::new().unwrap();
+    runner
+        .load_definitions(
+            "defs",
+            "hotspot.box = { walk = function() say('never') end }",
+        )
+        .unwrap();
+    runner
+        .interact("box", "walk", Some(vec2(60.0, 50.0)))
+        .unwrap();
+
+    for _ in 0..200 {
+        step(&mut runner, &room, &mut actor);
+        assert!(!actor.is_speaking());
+        if !runner.is_running() {
+            break;
+        }
+    }
+    assert!(!runner.is_running());
+    assert!((actor.position().x - 60.0).abs() < 1e-3);
+}
+
 #[test]
 fn syntax_error_is_reported_when_starting() {
     let mut runner = ScriptRunner::new().unwrap();

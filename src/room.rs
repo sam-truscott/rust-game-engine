@@ -1,4 +1,4 @@
-use macroquad::math::{Vec2, vec2};
+use macroquad::math::{Rect, Vec2, vec2};
 use mlua::{Lua, Table};
 
 use crate::pathfinder;
@@ -21,6 +21,16 @@ pub struct Prop {
     pub depth: f32,
 }
 
+/// Something the player can act on. `rect` is in game coordinates (y up); `walk_to` is where the
+/// player stands to do it.
+#[derive(Clone, Debug)]
+pub struct Hotspot {
+    pub id: String,
+    pub name: String,
+    pub rect: Rect,
+    pub walk_to: Option<Vec2>,
+}
+
 /// A room: a walkable outline (possibly concave) with obstacle holes, plus the images drawn for it.
 /// Walking is done on the outline shrunk, and the obstacles grown, by a margin, so a character
 /// standing on the walkable boundary does not overlap walls or obstacles.
@@ -31,6 +41,7 @@ pub struct Room {
     walk_obstacles: Vec<Vec<Vec2>>,
     background: Option<String>,
     props: Vec<Prop>,
+    hotspots: Vec<Hotspot>,
     vertices: Vec<Vec2>,
     edges: Vec<Segment>,
     corners_visible: Vec<Vec<bool>>,
@@ -71,12 +82,18 @@ impl Room {
             walk_obstacles,
             background,
             props,
+            hotspots: Vec::new(),
             vertices,
             edges,
             corners_visible: Vec::new(),
         };
         room.corners_visible = pathfinder::corner_visibility(&room);
         room
+    }
+
+    pub fn with_hotspots(mut self, hotspots: Vec<Hotspot>) -> Self {
+        self.hotspots = hotspots;
+        self
     }
 
     /// Reads a room from the table a `rooms/*.lua` file returns.
@@ -113,15 +130,48 @@ impl Room {
             }
         }
 
+        let mut hotspots = Vec::new();
+        let hotspot_tables: Option<Table> = table.get("hotspots")?;
+        if let Some(hotspot_tables) = hotspot_tables {
+            for hotspot in hotspot_tables.sequence_values::<Table>() {
+                let hotspot = hotspot?;
+                let id: String = hotspot.get("id")?;
+                let name: String = hotspot.get("name")?;
+                let rect: Table = hotspot.get("rect")?;
+                let (x, y): (f32, f32) = (rect.get(1)?, rect.get(2)?);
+                let (w, h): (f32, f32) = (rect.get(3)?, rect.get(4)?);
+                let walk_to: Option<Table> = hotspot.get("walkTo")?;
+                let walk_to = match walk_to {
+                    Some(point) => Some(vec2(point.get(1)?, point.get(2)?)),
+                    None => None,
+                };
+                hotspots.push(Hotspot {
+                    id,
+                    name,
+                    rect: Rect::new(x, y, w, h),
+                    walk_to,
+                });
+            }
+        }
+
         let margin: Option<f32> = table.get("margin")?;
         let background: Option<String> = table.get("background")?;
-        Ok(Self::with_options(
-            outline,
-            obstacles,
-            margin.unwrap_or(0.0),
-            background,
-            props,
-        ))
+        Ok(
+            Self::with_options(outline, obstacles, margin.unwrap_or(0.0), background, props)
+                .with_hotspots(hotspots),
+        )
+    }
+
+    pub fn hotspots(&self) -> &[Hotspot] {
+        &self.hotspots
+    }
+
+    /// The hotspot under a point; later entries in the room file are on top.
+    pub fn hotspot_at(&self, point: Vec2) -> Option<&Hotspot> {
+        self.hotspots
+            .iter()
+            .rev()
+            .find(|hotspot| hotspot.rect.contains(point))
     }
 
     pub fn background(&self) -> Option<&str> {

@@ -15,6 +15,30 @@ fn hall_loads_with_its_background_obstacles_and_props() {
     assert_eq!(room.obstacles().len(), 2);
     assert_eq!(room.props().len(), 2);
     assert_eq!(room.props()[0].depth, room.props()[0].y);
+    assert_eq!(room.hotspots().len(), 2);
+}
+
+#[test]
+fn hotspots_are_reachable_and_the_room_script_loads() {
+    let room = hall();
+    let definitions = assets::text("scripts/hall.lua").expect("scripts/hall.lua is missing");
+    let mut runner = game::script::ScriptRunner::new().unwrap();
+    runner
+        .load_definitions("scripts/hall.lua", &definitions)
+        .unwrap();
+
+    for hotspot in room.hotspots() {
+        let spot = hotspot
+            .walk_to
+            .expect("hall hotspots have a spot to stand on");
+        assert_eq!(
+            room.constrain(spot.x, spot.y),
+            spot,
+            "{} is not walkable",
+            hotspot.id
+        );
+        assert!(hotspot.rect.w > 0.0 && hotspot.rect.h > 0.0);
+    }
 }
 
 #[test]

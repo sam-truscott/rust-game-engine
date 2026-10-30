@@ -4,7 +4,8 @@
 use std::cell::RefCell;
 use std::rc::Rc;
 
-use mlua::{Lua, Thread};
+use macroquad::math::Vec2;
+use mlua::{Function, Lua, Thread};
 
 use crate::actor::Actor;
 use crate::room::Room;
@@ -14,6 +15,26 @@ const PRELUDE: &str = r#"
 function walkTo(x, y) __walk_to(x, y) coroutine.yield() end
 function say(text) __say(text) coroutine.yield() end
 function wait(seconds) __wait(seconds) coroutine.yield() end
+
+-- Scripts fill this in: hotspot.counter = { look = function() say("...") end, ... }
+hotspot = {}
+
+-- What happens when a verb is used on a hotspot: walk to its spot, then run the handler if there is one.
+function __interaction(id, verb, x, y)
+  return function()
+    if x then walkTo(x, y) end
+    if verb == "walk" then return end
+    local handlers = hotspot[id]
+    local handler = handlers and handlers[verb]
+    if handler then
+      handler()
+    elseif verb == "look" then
+      say("I see nothing special.")
+    else
+      say("I can't do that.")
+    end
+  end
+end
 "#;
 
 enum Command {
@@ -92,6 +113,26 @@ impl ScriptRunner {
         let thread = self.lua.create_thread(function)?;
         self.scripts.push(Script {
             name: name.to_owned(),
+            thread,
+            waiting: None,
+        });
+        Ok(())
+    }
+
+    /// Runs a script to completion straight away; for scripts that only define things, such as hotspot
+    /// handlers. It must not call anything that waits.
+    pub fn load_definitions(&mut self, name: &str, source: &str) -> mlua::Result<()> {
+        self.lua.load(source).set_name(name).exec()
+    }
+
+    /// Starts using `verb` (a key from `ui::Verb::key`) on a hotspot, walking to `walk_to` first.
+    pub fn interact(&mut self, id: &str, verb: &str, walk_to: Option<Vec2>) -> mlua::Result<()> {
+        let factory: Function = self.lua.globals().get("__interaction")?;
+        let (x, y) = (walk_to.map(|p| p.x), walk_to.map(|p| p.y));
+        let function: Function = factory.call((id, verb, x, y))?;
+        let thread = self.lua.create_thread(function)?;
+        self.scripts.push(Script {
+            name: format!("{id}.{verb}"),
             thread,
             waiting: None,
         });
