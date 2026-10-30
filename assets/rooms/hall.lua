@@ -1,27 +1,37 @@
+-- A pub. The bar runs along the right half of the room; the walk area is notched so the strip in front
+-- of it is the only part of the right half you can reach. Tables and chairs are on the left, and the
+-- window shows the street outside.
 return {
   background = "rooms/hall.png",
   margin = 8,
   walkArea = {
     { 20, 20 },
-    { 300, 20 },
-    { 314, 100 },
+    { 314, 20 },
+    { 314, 52 },
+    { 160, 52 },
+    { 160, 100 },
     { 6, 100 },
   },
   obstacles = {
-    { { 120, 45 }, { 200, 45 }, { 200, 70 }, { 120, 70 } },
-    { { 232, 55 }, { 280, 55 }, { 280, 59 }, { 232, 59 } },
-    { { 72, 58 }, { 100, 58 }, { 100, 64 }, { 72, 64 } },
+    -- table and its two chairs
+    { { 52, 40 }, { 118, 40 }, { 118, 54 }, { 52, 54 } },
+    -- corner cupboard
+    { { 30, 80 }, { 58, 80 }, { 58, 82 }, { 30, 82 } },
   },
   props = {
-    { image = "props/counter.png", x = 120, y = 45 },
-    { image = "props/window.png", x = 232, y = 55 },
-    { id = "cupboard", image = "props/cupboard.png", x = 72, y = 58, frames = 4, fps = 10 },
-    { id = "key", image = "props/key.png", x = 40, y = 36 },
+    { image = "props/table.png", x = 52, y = 40 },
+    { image = "props/bar.png", x = 160, y = 52 },
+    { id = "cupboard", image = "props/cupboard.png", x = 30, y = 80 },
+    { id = "door", image = "props/door.png", x = 132, y = 96, frames = 4, fps = 10 },
+    { id = "key", image = "props/key.png", x = 72, y = 78 },
   },
   hotspots = {
-    { id = "counter", name = "counter", rect = { 120, 45, 80, 55 }, walkTo = { 160, 30 } },
-    { id = "window", name = "window", rect = { 232, 55, 48, 48 }, walkTo = { 256, 40 } },
-    { id = "cupboard", name = "cupboard", rect = { 72, 58, 28, 36 }, walkTo = { 86, 45 } },
-    { id = "key", name = "brass key", rect = { 36, 33, 20, 12 }, walkTo = { 46, 30 } },
+    { id = "table", name = "table", rect = { 52, 40, 66, 34 }, walkTo = { 85, 30 } },
+    { id = "cupboard", name = "cupboard", rect = { 30, 80, 28, 36 }, walkTo = { 44, 70 } },
+    { id = "window", name = "window", rect = { 66, 101, 62, 48 }, walkTo = { 96, 80 } },
+    { id = "door", name = "door", rect = { 132, 96, 28, 36 }, walkTo = { 146, 90 } },
+    { id = "bottles", name = "bottles", rect = { 166, 100, 148, 50 }, walkTo = { 240, 40 } },
+    { id = "bar", name = "bar", rect = { 160, 52, 160, 36 }, walkTo = { 240, 40 } },
+    { id = "key", name = "brass key", rect = { 68, 75, 20, 12 }, walkTo = { 78, 70 } },
   },
 }

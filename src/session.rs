@@ -14,7 +14,7 @@ const START_ROOM: &str = "rooms/hall.lua";
 const ROOM_SCRIPT: &str = "scripts/hall.lua";
 const INTRO_SCRIPT: &str = "scripts/intro.lua";
 const ITEMS: &str = "items.lua";
-const START_POSITION: Vec2 = Vec2::new(60.0, 50.0);
+const START_POSITION: Vec2 = Vec2::new(30.0, 50.0);
 
 /// Script handlers: `hotspot.<id>.look` and `.interact`, and the same for items.
 const LOOK: &str = "look";

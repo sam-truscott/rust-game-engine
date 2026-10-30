@@ -6,11 +6,12 @@ const STEP: f32 = 1.0 / 30.0;
 
 // Clicks are screen points: the room is drawn above the panel, so a room point has the panel's height
 // added to its y. The inventory slots are inside the panel.
-const KEY: Vec2 = vec2(46.0, 39.0 + PANEL_HEIGHT);
-const COUNTER: Vec2 = vec2(160.0, 70.0 + PANEL_HEIGHT);
+const KEY: Vec2 = vec2(78.0, 81.0 + PANEL_HEIGHT);
+const BAR: Vec2 = vec2(240.0, 70.0 + PANEL_HEIGHT);
+const CUPBOARD: Vec2 = vec2(44.0, 100.0 + PANEL_HEIGHT);
 const FLOOR: Vec2 = vec2(110.0, 85.0 + PANEL_HEIGHT);
-const BEHIND_THE_WINDOW: Vec2 = vec2(256.0, 72.0 + PANEL_HEIGHT);
-const CUPBOARD: Vec2 = vec2(86.0, 76.0 + PANEL_HEIGHT);
+const WINDOW: Vec2 = vec2(96.0, 120.0 + PANEL_HEIGHT);
+const DOOR: Vec2 = vec2(146.0, 110.0 + PANEL_HEIGHT);
 const SLOT_0: Vec2 = vec2(16.0, 13.0);
 const SLOT_1: Vec2 = vec2(44.0, 13.0);
 const SLOT_5: Vec2 = vec2(156.0, 13.0);
@@ -82,9 +83,9 @@ fn hotspots_are_found_by_their_room_position() {
             .hotspot_at(ui::to_room(point))
             .map(|hotspot| hotspot.id.as_str())
     };
-    assert_eq!(at(COUNTER), Some("counter"));
+    assert_eq!(at(BAR), Some("bar"));
     assert_eq!(at(KEY), Some("key"));
-    assert_eq!(at(BEHIND_THE_WINDOW), Some("window"));
+    assert_eq!(at(WINDOW), Some("window"));
     assert_eq!(at(FLOOR), None);
 }
 
@@ -95,7 +96,7 @@ fn a_click_on_the_panel_never_walks_but_one_just_above_it_does() {
     click(&mut session, vec2(150.0, PANEL_HEIGHT - 0.5));
     assert!(!session.player.is_walking());
 
-    click(&mut session, vec2(110.0, PANEL_HEIGHT + 60.0));
+    click(&mut session, FLOOR);
     assert!(session.player.is_walking());
 }
 
@@ -111,42 +112,42 @@ fn clicking_where_nothing_is_walks_there() {
 #[test]
 fn a_single_click_on_an_object_looks_at_it_from_its_standing_spot() {
     let mut session = session();
-    click(&mut session, COUNTER);
+    click(&mut session, BAR);
     assert_eq!(
         next_words(&mut session),
-        "A sturdy counter. Someone polishes it."
+        "A long oak bar, ring-stained and well loved."
     );
-    assert_eq!(session.player.position(), vec2(160.0, 30.0));
+    assert_eq!(session.player.position(), vec2(240.0, 40.0));
 }
 
 #[test]
 fn a_double_click_on_an_object_interacts_instead_of_looking() {
     let mut session = session();
-    double_click(&mut session, COUNTER);
-    assert_eq!(next_words(&mut session), "The drawers are locked.");
+    double_click(&mut session, BAR);
+    assert_eq!(next_words(&mut session), "Nobody is serving.");
     settle(&mut session);
-    assert_eq!(session.player.position(), vec2(160.0, 30.0));
+    assert_eq!(session.player.position(), vec2(240.0, 40.0));
 }
 
 #[test]
 fn a_double_click_cuts_short_the_look_the_first_click_started() {
     let mut session = session();
-    click(&mut session, COUNTER);
+    click(&mut session, BAR);
     session.update(STEP * 3.0);
     assert!(session.scripts.is_running());
-    session.click(COUNTER);
-    assert_eq!(next_words(&mut session), "The drawers are locked.");
+    session.click(BAR);
+    assert_eq!(next_words(&mut session), "Nobody is serving.");
 }
 
 #[test]
 fn two_slow_clicks_are_not_a_double_click() {
     let mut session = session();
-    click(&mut session, COUNTER);
+    click(&mut session, BAR);
     session.update(1.0);
-    session.click(COUNTER);
+    session.click(BAR);
     assert_eq!(
         next_words(&mut session),
-        "A sturdy counter. Someone polishes it.",
+        "A long oak bar, ring-stained and well loved.",
         "the second click is ignored while the look plays"
     );
 }
@@ -154,12 +155,12 @@ fn two_slow_clicks_are_not_a_double_click() {
 #[test]
 fn a_third_quick_click_starts_a_new_double_click() {
     let mut session = session();
-    double_click(&mut session, COUNTER);
+    double_click(&mut session, BAR);
     settle(&mut session);
-    session.click(COUNTER);
+    session.click(BAR);
     assert_eq!(
         next_words(&mut session),
-        "A sturdy counter. Someone polishes it."
+        "A long oak bar, ring-stained and well loved."
     );
 }
 
@@ -179,12 +180,12 @@ fn single_clicks_are_ignored_while_a_script_runs() {
     assert_eq!(next_words(&mut session), "Got it.");
 
     session.click(SLOT_0);
-    session.click(COUNTER);
+    session.click(BAR);
     session.click(FLOOR);
     assert!(!session.player.is_walking());
     settle(&mut session);
     assert_eq!(session.world.items(), vec!["brass_key"]);
-    assert_eq!(session.player.position(), vec2(46.0, 30.0));
+    assert_eq!(session.player.position(), vec2(78.0, 70.0));
 }
 
 #[test]
@@ -198,8 +199,8 @@ fn an_item_can_be_picked_while_an_action_is_still_playing_out() {
     assert_eq!(session.holding.as_deref(), Some("brass_key"));
     assert!(!session.scripts.is_running());
 
-    click(&mut session, COUNTER);
-    assert_eq!(next_words(&mut session), "The key fits the drawer!");
+    click(&mut session, CUPBOARD);
+    assert_eq!(next_words(&mut session), "The key fits the cupboard!");
 }
 
 #[test]
@@ -214,7 +215,7 @@ fn interacting_with_the_key_puts_it_in_the_inventory_and_removes_it_from_the_roo
     assert_eq!(session.world.items(), vec!["brass_key"]);
     assert!(session.world.is_hidden("key"));
     assert!(session.hotspot_at(ui::to_room(KEY)).is_none());
-    assert_eq!(session.player.position(), vec2(46.0, 30.0));
+    assert_eq!(session.player.position(), vec2(78.0, 70.0));
 }
 
 #[test]
@@ -244,17 +245,17 @@ fn a_double_click_on_a_carried_item_picks_it_up_to_use() {
 }
 
 #[test]
-fn the_key_opens_the_counter_drawer_and_is_swapped_for_a_coin() {
+fn the_key_opens_the_cupboard_and_is_swapped_for_a_coin() {
     let mut session = with_the_key();
 
     double_click(&mut session, SLOT_0);
-    click(&mut session, COUNTER);
-    assert_eq!(next_words(&mut session), "The key fits the drawer!");
+    click(&mut session, CUPBOARD);
+    assert_eq!(next_words(&mut session), "The key fits the cupboard!");
     settle(&mut session);
 
     assert_eq!(session.world.items(), vec!["coin"]);
     assert_eq!(session.holding, None);
-    assert_eq!(session.player.position(), vec2(160.0, 30.0));
+    assert_eq!(session.player.position(), vec2(44.0, 70.0));
 }
 
 #[test]
@@ -303,18 +304,18 @@ fn using_the_wrong_item_on_a_hotspot_does_not_work() {
     let mut session = with_the_key();
     session.world.give("coin");
     double_click(&mut session, SLOT_1);
-    click(&mut session, COUNTER);
+    click(&mut session, CUPBOARD);
     assert_eq!(next_words(&mut session), "That doesn't work.");
     settle(&mut session);
     assert_eq!(session.world.items(), vec!["brass_key", "coin"]);
 }
 
 #[test]
-fn interacting_with_the_cupboard_plays_the_door_and_doing_it_again_closes_it() {
+fn interacting_with_the_door_plays_the_door_and_doing_it_again_closes_it() {
     let mut session = session();
     for expected in [3, 0] {
-        double_click(&mut session, CUPBOARD);
+        double_click(&mut session, DOOR);
         settle(&mut session);
-        assert_eq!(session.world.frame("cupboard"), expected);
+        assert_eq!(session.world.frame("door"), expected);
     }
 }

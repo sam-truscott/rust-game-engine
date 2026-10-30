@@ -3,29 +3,29 @@
 # Positions are screen points (320x180, y up): the room is above the 26-high panel, so a room point
 # (x, y) is clicked at (x, y + 26). Two `click`s in a row are a double click (the time step is fixed).
 wait 3
-move 160 96                # over the counter
-click 160 96               # single click: look at the counter
+move 240 96                 # over the bar
+click 240 96                # single click: look at the bar
 wait 0.6
-shot h1_walking_to_counter
-wait 2.5
-shot h2_looking             # standing in front of the counter, speaking
-where                       # (160, 30), speaking, handler still running
+shot h1_walking_to_bar
 wait 4
-where                       # nothing running
+shot h2_looking             # standing at the bar, speaking
+where                       # (240, 40), speaking, handler still running
+wait 4
+where                       # (240, 40), nothing running
 
-click 256 101               # look at the window
+click 96 146                # look at the window
 wait 0.3
-click 256 101               # second click: cuts the look short and interacts instead
-wait 2.5
-shot h3_window_interact     # at the window's spot (256, 40), "It's only a frame."
+click 96 146                # second click: cuts the look short and interacts instead
+wait 4
+shot h3_window_interact     # at the window's spot (96, 80), "It doesn't open."
 wait 3
-where                       # (256, 40), nothing running
+where                       # (96, 80), nothing running
 
-click 160 96
-click 160 96               # the counter again
-wait 2.5
-shot h4_counter_interact    # "The drawers are locked."
+click 240 96
+click 240 96                # the bar again
+wait 4
+shot h4_bar_interact        # "The till is locked."
 wait 3
 click 160 20                # on the panel: nothing happens
-where                       # player has not moved
+where                       # player has not moved: (240, 40)
 quit

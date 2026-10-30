@@ -11,11 +11,11 @@ fn hall() -> Room {
 fn hall_loads_with_its_background_obstacles_and_props() {
     let room = hall();
     assert_eq!(room.background(), Some("rooms/hall.png"));
-    assert_eq!(room.outline().len(), 4);
-    assert_eq!(room.obstacles().len(), 3);
-    assert_eq!(room.props().len(), 4);
+    assert_eq!(room.outline().len(), 6);
+    assert_eq!(room.obstacles().len(), 2);
+    assert_eq!(room.props().len(), 5);
     assert_eq!(room.props()[0].depth, room.props()[0].y);
-    assert_eq!(room.hotspots().len(), 4);
+    assert_eq!(room.hotspots().len(), 7);
 }
 
 #[test]
@@ -70,7 +70,7 @@ fn everything_the_hall_refers_to_exists() {
 #[test]
 fn the_player_starts_somewhere_walkable() {
     let room = hall();
-    assert_eq!(room.constrain(60.0, 50.0), vec2(60.0, 50.0));
+    assert_eq!(room.constrain(30.0, 50.0), vec2(30.0, 50.0));
 }
 
 #[test]

@@ -1,25 +1,25 @@
-# Walk to the right of the window, then in front of the counter, then restart.
+# Walk to the gap between the table and the bar, then in front of the bar, then restart.
 # Run: target/debug/game.exe --auto play/hall.txt --out screenshots
 # Positions are screen points (320x180, y up): the room is above the 26-high panel, so a room point
 # (x, y) is clicked at (x, y + 26).
 # The `where` lines print the player's state; compare them with the comments.
 wait 3
 shot 01_start
-click 290 96        # room (290, 70): beside the window, where there is nothing to click on
+click 150 86        # room (150, 60): nothing to click on, so just walk
 wait 0.4
 shot 02_walking
 wait 6
-where            # (290, 70) facing Right, not walking
-shot 03_beside_window
+where            # (150, 60), not walking
+shot 03_beside_table
 key f1
 shot 04_overlay
 key f1
-click 160 56        # room (160, 30): in front of the counter
+click 240 96        # the bar: look at it from its standing spot
 wait 5
-where            # (160, 30) facing Left, not walking
-shot 05_front
+where            # (240, 40), not walking
+shot 05_at_the_bar
 key r
 wait 0.1
-where            # (60, 50) facing Front, speaking, intro script running again
+where            # (30, 50) facing Front, speaking, intro script running again
 shot 06_restarted
 quit
