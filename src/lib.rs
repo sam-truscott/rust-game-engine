@@ -1,7 +1,10 @@
 pub mod actor;
 pub mod assets;
 pub mod direction;
+pub mod items;
 pub mod pathfinder;
 pub mod room;
 pub mod script;
+pub mod session;
 pub mod ui;
+pub mod world;

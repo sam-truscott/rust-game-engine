@@ -4,10 +4,7 @@ mod render;
 use std::path::Path;
 
 use automation::{Automation, FIXED_DELTA, Frame, Inputs};
-use game::actor::Actor;
-use game::assets;
-use game::room::{Hotspot, Room};
-use game::script::ScriptRunner;
+use game::session::Session;
 use game::ui::{self, Verb};
 use macroquad::prelude::*;
 use render::{CharacterSprite, FRAME_HEIGHT, RoomRenderer, VIRTUAL_HEIGHT, VIRTUAL_WIDTH};
@@ -15,11 +12,9 @@ use render::{CharacterSprite, FRAME_HEIGHT, RoomRenderer, VIRTUAL_HEIGHT, VIRTUA
 const SPEECH_WRAP_WIDTH: f32 = 160.0;
 const TEXT_SIZE: f32 = 8.0;
 const LINE_SPACING: f32 = 1.15;
-const INTRO_SCRIPT: &str = "scripts/intro.lua";
-const ROOM_SCRIPT: &str = "scripts/hall.lua";
-const START_ROOM: &str = "rooms/hall.lua";
 const PLAYER_SPRITE: &str = "characters/player.png";
 const CLEAR: Color = Color::new(0.1, 0.1, 0.2, 1.0);
+const PANEL_SHADE: Color = Color::new(0.0, 0.0, 0.0, 0.6);
 const SHOT_WIDTH: u32 = 1280;
 const SHOT_HEIGHT: u32 = 720;
 
@@ -62,58 +57,31 @@ impl View {
     }
 }
 
+fn load_session() -> Session {
+    Session::load().unwrap_or_else(|error| panic!("{error}"))
+}
+
 struct Game {
     sprite: CharacterSprite,
-    room: Room,
     renderer: RoomRenderer,
-    player: Actor,
-    scripts: ScriptRunner,
-    verb: Verb,
-    cursor: Vec2,
+    session: Session,
     show_debug: bool,
 }
 
 impl Game {
     fn new() -> Self {
-        let sprite = CharacterSprite::new(PLAYER_SPRITE);
-        let (room, renderer, player, scripts) = Self::load_room();
+        let session = load_session();
         Game {
-            sprite,
-            room,
-            renderer,
-            player,
-            scripts,
-            verb: Verb::WalkTo,
-            cursor: Vec2::ZERO,
+            sprite: CharacterSprite::new(PLAYER_SPRITE),
+            renderer: RoomRenderer::new(&session.room),
+            session,
             show_debug: false,
         }
     }
 
-    fn load_room() -> (Room, RoomRenderer, Actor, ScriptRunner) {
-        let source = assets::text(START_ROOM).unwrap_or_else(|| panic!("missing {START_ROOM}"));
-        let room = Room::from_lua(&source, START_ROOM)
-            .unwrap_or_else(|error| panic!("{START_ROOM}: {error}"));
-        let renderer = RoomRenderer::new(&room);
-        let start = room.constrain(60.0, 50.0);
-        let player = Actor::new(start.x, start.y);
-
-        let mut scripts = ScriptRunner::new().expect("Lua failed to start");
-        let definitions =
-            assets::text(ROOM_SCRIPT).unwrap_or_else(|| panic!("missing {ROOM_SCRIPT}"));
-        scripts
-            .load_definitions(ROOM_SCRIPT, &definitions)
-            .unwrap_or_else(|error| panic!("{ROOM_SCRIPT}: {error}"));
-        let intro = assets::text(INTRO_SCRIPT).unwrap_or_else(|| panic!("missing {INTRO_SCRIPT}"));
-        scripts
-            .start(INTRO_SCRIPT, &intro)
-            .unwrap_or_else(|error| panic!("{INTRO_SCRIPT}: {error}"));
-        (room, renderer, player, scripts)
-    }
-
     fn restart(&mut self) {
-        self.scripts.clear();
-        (self.room, self.renderer, self.player, self.scripts) = Self::load_room();
-        self.verb = Verb::WalkTo;
+        self.session = load_session();
+        self.renderer = RoomRenderer::new(&self.session.room);
     }
 
     fn update(&mut self, inputs: &Inputs, delta: f32) {
@@ -124,47 +92,12 @@ impl Game {
             self.show_debug = !self.show_debug;
         }
         if let Some(cursor) = inputs.cursor {
-            self.cursor = cursor;
+            self.session.move_cursor(cursor);
         }
-        if let Some(point) = inputs.click
-            && !self.scripts.is_running()
-        {
-            self.click(point);
+        if let Some(point) = inputs.click {
+            self.session.click(point);
         }
-
-        self.player.update(delta);
-        self.scripts.update(delta, &self.room, &mut self.player);
-    }
-
-    /// A button picks the verb; anywhere else uses the verb on what is there, or just walks, and
-    /// the verb goes back to "Walk to".
-    fn click(&mut self, point: Vec2) {
-        if let Some(verb) = ui::verb_at(point) {
-            self.verb = verb;
-            return;
-        }
-        if ui::in_panel(point) {
-            return;
-        }
-
-        let verb = std::mem::replace(&mut self.verb, Verb::WalkTo);
-        match self.room.hotspot_at(point) {
-            Some(hotspot) => {
-                let (id, walk_to) = (hotspot.id.clone(), hotspot.walk_to.or(Some(point)));
-                self.scripts
-                    .interact(&id, verb.key(), walk_to)
-                    .unwrap_or_else(|error| eprintln!("[lua] {id}.{}: {error}", verb.key()));
-            }
-            None => self.player.walk_to(&self.room, point.x, point.y),
-        }
-    }
-
-    fn hovered(&self) -> Option<&Hotspot> {
-        if ui::in_panel(self.cursor) {
-            None
-        } else {
-            self.room.hotspot_at(self.cursor)
-        }
+        self.session.update(delta);
     }
 
     /// Draws to the window, or to `output` (used for screenshots) when given.
@@ -174,8 +107,10 @@ impl Game {
             ..Camera2D::from_display_rect(Rect::new(0.0, 0.0, VIRTUAL_WIDTH, VIRTUAL_HEIGHT))
         });
         clear_background(CLEAR);
-        self.renderer.draw(&self.player, &self.sprite);
+        self.renderer
+            .draw(&self.session.player, &self.sprite, &self.session.world);
         self.draw_verb_panel();
+        self.draw_inventory_panel();
 
         match output {
             Some(output) => set_camera(&Camera2D {
@@ -215,29 +150,68 @@ impl Game {
 
     /// The bar's background and button boxes, drawn into the virtual screen.
     fn draw_verb_panel(&self) {
-        let top_left = |rect: Rect| VIRTUAL_HEIGHT - (rect.y + rect.h);
+        let session = &self.session;
         draw_rectangle(
             0.0,
             0.0,
             VIRTUAL_WIDTH,
             VIRTUAL_HEIGHT - ui::PANEL_BOTTOM,
-            Color::new(0.0, 0.0, 0.0, 0.6),
+            PANEL_SHADE,
         );
         for verb in Verb::ALL {
             let rect = ui::button_rect(verb);
-            let shade = if verb == self.verb {
+            let shade = if verb == session.verb && session.holding.is_none() {
                 Color::new(1.0, 0.9, 0.2, 0.3)
-            } else if rect.contains(self.cursor) {
+            } else if rect.contains(session.cursor) {
                 Color::new(1.0, 1.0, 1.0, 0.25)
             } else {
                 Color::new(1.0, 1.0, 1.0, 0.1)
             };
-            draw_rectangle(rect.x, top_left(rect), rect.w, rect.h, shade);
+            draw_rectangle(
+                rect.x,
+                VIRTUAL_HEIGHT - (rect.y + rect.h),
+                rect.w,
+                rect.h,
+                shade,
+            );
+        }
+    }
+
+    /// The inventory strip: a box per carried item, filled with the item's colour until it has an icon.
+    fn draw_inventory_panel(&self) {
+        let session = &self.session;
+        draw_rectangle(
+            0.0,
+            VIRTUAL_HEIGHT - ui::INVENTORY_TOP,
+            VIRTUAL_WIDTH,
+            ui::INVENTORY_TOP,
+            PANEL_SHADE,
+        );
+        for (index, id) in session
+            .world
+            .items()
+            .iter()
+            .take(ui::SLOT_COUNT)
+            .enumerate()
+        {
+            let slot = ui::slot_rect(index);
+            let top = VIRTUAL_HEIGHT - (slot.y + slot.h);
+            let shade = if session.holding.as_deref() == Some(id.as_str()) {
+                Color::new(1.0, 0.9, 0.2, 0.4)
+            } else if slot.contains(session.cursor) {
+                Color::new(1.0, 1.0, 1.0, 0.25)
+            } else {
+                Color::new(1.0, 1.0, 1.0, 0.1)
+            };
+            draw_rectangle(slot.x, top, slot.w, slot.h, shade);
+            let color = session.items.get(id).map_or(GRAY, |item| item.color);
+            draw_rectangle(slot.x + 4.0, top + 2.0, slot.w - 8.0, slot.h - 4.0, color);
         }
     }
 
     /// The labels and the sentence, drawn at window resolution so they stay crisp.
     fn draw_verb_text(&self, view: &View) {
+        let session = &self.session;
         let size = (TEXT_SIZE * view.scale).round().max(1.0) as u16;
         let ascent = measure_text("Ag", None, size, 1.0).offset_y;
         let centred = |text: &str, left: f32, width: f32| {
@@ -247,9 +221,9 @@ impl Game {
         for verb in Verb::ALL {
             let rect = ui::button_rect(verb);
             let corner = view.to_screen(vec2(rect.x, rect.y + rect.h));
-            let color = if verb == self.verb {
+            let color = if verb == session.verb && session.holding.is_none() {
                 YELLOW
-            } else if rect.contains(self.cursor) {
+            } else if rect.contains(session.cursor) {
                 WHITE
             } else {
                 LIGHTGRAY
@@ -263,7 +237,7 @@ impl Game {
             );
         }
 
-        let sentence = ui::sentence(self.verb, self.hovered());
+        let sentence = session.sentence();
         let baseline = view.to_screen(vec2(0.0, ui::SENTENCE_BASELINE));
         draw_text(
             &sentence,
@@ -276,7 +250,7 @@ impl Game {
 
     /// Drawn at window resolution so the text stays crisp however the virtual screen is scaled.
     fn draw_speech(&self, view: &View) {
-        let Some(text) = self.player.speech() else {
+        let Some(text) = self.session.player.speech() else {
             return;
         };
         let size = (TEXT_SIZE * view.scale).round().max(1.0) as u16;
@@ -284,7 +258,7 @@ impl Game {
         let line_height = size as f32 * LINE_SPACING;
         let ascent = measure_text("Ag", None, size, 1.0).offset_y;
 
-        let feet = self.player.position();
+        let feet = self.session.player.position();
         let left = (feet.x - SPEECH_WRAP_WIDTH / 2.0).clamp(0.0, VIRTUAL_WIDTH - SPEECH_WRAP_WIDTH);
         let block_height = lines.len() as f32 * line_height / view.scale;
         let top = (feet.y + FRAME_HEIGHT + 4.0 + block_height).min(ui::PANEL_BOTTOM);
@@ -305,6 +279,7 @@ impl Game {
 
     /// F1: the authored walk area in green, the margin-adjusted area characters walk on in yellow.
     fn draw_debug(&self, view: &View) {
+        let room = &self.session.room;
         let outline = |ring: &[Vec2], color: Color| {
             for (i, &a) in ring.iter().enumerate() {
                 let (a, b) = (
@@ -314,29 +289,30 @@ impl Game {
                 draw_line(a.x, a.y, b.x, b.y, 1.0, color);
             }
         };
-        outline(self.room.outline(), GREEN);
-        self.room
-            .obstacles()
+        outline(room.outline(), GREEN);
+        room.obstacles()
             .iter()
             .for_each(|ring| outline(ring, GREEN));
-        outline(self.room.walk_outline(), YELLOW);
-        self.room
-            .walk_obstacles()
+        outline(room.walk_outline(), YELLOW);
+        room.walk_obstacles()
             .iter()
             .for_each(|ring| outline(ring, YELLOW));
     }
 
     fn print_state(&self) {
-        let position = self.player.position();
+        let session = &self.session;
+        let position = session.player.position();
         println!(
-            "[state] player at ({:.1}, {:.1}) facing {:?} verb={:?} walking={} speaking={} scripts_running={}",
+            "[state] player at ({:.1}, {:.1}) facing {:?} verb={:?} holding={:?} carrying={:?} walking={} speaking={} scripts_running={}",
             position.x,
             position.y,
-            self.player.facing(),
-            self.verb,
-            self.player.is_walking(),
-            self.player.is_speaking(),
-            self.scripts.is_running(),
+            session.player.facing(),
+            session.verb,
+            session.holding,
+            session.world.items(),
+            session.player.is_walking(),
+            session.player.is_speaking(),
+            session.scripts.is_running(),
         );
     }
 }

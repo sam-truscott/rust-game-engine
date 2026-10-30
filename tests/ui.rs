@@ -1,18 +1,9 @@
-use game::room::{Hotspot, Room};
+use game::room::Room;
 use game::ui::{self, Verb};
 use macroquad::math::{Rect, vec2};
 
 fn centre(rect: Rect) -> macroquad::math::Vec2 {
     vec2(rect.x + rect.w / 2.0, rect.y + rect.h / 2.0)
-}
-
-fn counter() -> Hotspot {
-    Hotspot {
-        id: "counter".to_owned(),
-        name: "counter".to_owned(),
-        rect: Rect::new(0.0, 0.0, 1.0, 1.0),
-        walk_to: None,
-    }
 }
 
 #[test]
@@ -72,15 +63,63 @@ fn verbs_have_distinct_labels_and_script_keys() {
 
 #[test]
 fn the_sentence_names_what_the_cursor_is_over() {
-    assert_eq!(ui::sentence(Verb::LookAt, None), "Look at");
+    assert_eq!(ui::sentence(Verb::LookAt, None, None), "Look at");
     assert_eq!(
-        ui::sentence(Verb::LookAt, Some(&counter())),
+        ui::sentence(Verb::LookAt, None, Some("counter")),
         "Look at counter"
     );
     assert_eq!(
-        ui::sentence(Verb::WalkTo, Some(&counter())),
+        ui::sentence(Verb::WalkTo, None, Some("counter")),
         "Walk to counter"
     );
+}
+
+#[test]
+fn holding_an_item_makes_the_sentence_use_it_with_something() {
+    assert_eq!(
+        ui::sentence(Verb::Use, Some("brass key"), None),
+        "Use brass key with"
+    );
+    assert_eq!(
+        ui::sentence(Verb::Use, Some("brass key"), Some("counter")),
+        "Use brass key with counter"
+    );
+}
+
+#[test]
+fn inventory_slots_are_found_only_where_something_is_carried() {
+    for index in 0..3 {
+        assert_eq!(
+            ui::slot_at(centre(ui::slot_rect(index)), 3),
+            Some(index),
+            "slot {index}"
+        );
+    }
+    assert_eq!(ui::slot_at(centre(ui::slot_rect(3)), 3), None);
+    assert_eq!(ui::slot_at(centre(ui::slot_rect(0)), 0), None);
+    let gap = vec2(
+        ui::slot_rect(0).x + ui::slot_rect(0).w + 1.0,
+        centre(ui::slot_rect(0)).y,
+    );
+    assert_eq!(ui::slot_at(gap, 3), None);
+}
+
+#[test]
+fn the_slots_fit_on_screen_inside_the_strip() {
+    for index in 0..ui::SLOT_COUNT {
+        let slot = ui::slot_rect(index);
+        assert!(
+            slot.x >= 0.0 && slot.x + slot.w <= ui::SCREEN_WIDTH,
+            "slot {index}"
+        );
+        assert!(
+            slot.y >= 0.0 && slot.y + slot.h <= ui::INVENTORY_TOP,
+            "slot {index}"
+        );
+        assert!(ui::in_inventory(centre(slot)));
+    }
+    assert!(!ui::in_inventory(vec2(100.0, ui::INVENTORY_TOP)));
+    assert!(!ui::in_inventory(vec2(100.0, ui::PANEL_BOTTOM)));
 }
 
 #[test]

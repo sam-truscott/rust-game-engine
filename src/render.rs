@@ -2,6 +2,7 @@ use game::actor::Actor;
 use game::assets;
 use game::direction::Direction;
 use game::room::{Prop, Room};
+use game::world::World;
 use macroquad::prelude::*;
 
 pub const VIRTUAL_WIDTH: f32 = 320.0;
@@ -95,7 +96,8 @@ impl RoomRenderer {
     }
 
     /// Items with a larger depth are further back and drawn first; ties draw the actor last.
-    pub fn draw(&self, actor: &Actor, sprite: &CharacterSprite) {
+    /// Props a script has hidden are skipped.
+    pub fn draw(&self, actor: &Actor, sprite: &CharacterSprite, world: &World) {
         if let Some(background) = &self.background {
             draw_texture(background, 0.0, 0.0, WHITE);
         }
@@ -103,6 +105,7 @@ impl RoomRenderer {
         let mut items: Vec<(f32, Item)> = self
             .props
             .iter()
+            .filter(|(prop, _)| !prop.id.as_deref().is_some_and(|id| world.is_hidden(id)))
             .map(|(prop, texture)| (prop.depth, Item::Prop(prop, texture)))
             .collect();
         items.push((actor.position().y, Item::Actor));

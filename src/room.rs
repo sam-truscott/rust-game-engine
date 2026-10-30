@@ -15,6 +15,8 @@ pub struct Segment {
 /// An image placed in the room; characters with a smaller y than the depth are drawn in front of it.
 #[derive(Clone, Debug)]
 pub struct Prop {
+    /// Scripts hide a prop (and the hotspot with the same id) by this name.
+    pub id: Option<String>,
     pub image: String,
     pub x: f32,
     pub y: f32,
@@ -117,11 +119,13 @@ impl Room {
         if let Some(prop_tables) = prop_tables {
             for prop in prop_tables.sequence_values::<Table>() {
                 let prop = prop?;
+                let id: Option<String> = prop.get("id")?;
                 let image: String = prop.get("image")?;
                 let x: f32 = prop.get("x")?;
                 let y: f32 = prop.get("y")?;
                 let depth: Option<f32> = prop.get("depth")?;
                 props.push(Prop {
+                    id,
                     image,
                     x,
                     y,
