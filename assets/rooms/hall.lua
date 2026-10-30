@@ -25,11 +25,17 @@ return {
     { image = "props/table.png", x = 52, y = 40, scale = 4 },
     { image = "props/bar.png", x = 160, y = 52, scale = 4 },
     { id = "cupboard", image = "props/cupboard.png", x = 30, y = 80, scale = 4 },
-    { id = "patron_left", image = "props/patron_left.png", x = 53, y = 41, depth = 39, frames = 14, idle = 14, fps = 3, scale = 4 },
-    { id = "patron_right", image = "props/patron_right.png", x = 88, y = 41, depth = 39, frames = 13, idle = 13, fps = 3, scale = 4 },
-    { id = "barman", image = "props/barman.png", x = 240, y = 68, frames = 12, idle = 6, fps = 4, scale = 4 },
-    { id = "drinker", image = "props/drinker.png", x = 284, y = 47, frames = 15, idle = 15, fps = 3, scale = 4 },
-    { id = "door", image = "props/door.png", x = 120, y = 96, frames = 4, fps = 10, scale = 4 },
+    { id = "patron_left", image = "props/patron_left.png", x = 53, y = 41, depth = 39, frames = 14, idle = "loop", fps = 3, scale = 4, clips = { loop = { 0, 13 } } },
+    { id = "patron_right", image = "props/patron_right.png", x = 88, y = 41, depth = 39, frames = 13, idle = "loop", fps = 3, scale = 4, clips = { loop = { 0, 12 } } },
+    { id = "barman", image = "props/barman.png", x = 240, y = 68, frames = 12, idle = "clean", fps = 4, scale = 4,
+      clips = {
+        clean = { 0, 5 },
+        take_coin = { 6, 7, fps = 3 },   -- takes the coin and pockets it
+        pour = { 8, 9, fps = 3 },
+        serve = { 10, 11, fps = 3 },     -- slides the pint over
+      } },
+    { id = "drinker", image = "props/drinker.png", x = 284, y = 47, frames = 15, idle = "loop", fps = 3, scale = 4, clips = { loop = { 0, 14 } } },
+    { id = "door", image = "props/door.png", x = 120, y = 96, frames = 4, fps = 10, scale = 4, clips = { open = { 0, 3 }, close = { 3, 0 } } },
   },
   hotspots = {
     { id = "table", name = "table", rect = { 52, 40, 66, 34 }, walkTo = { 85, 30 } },

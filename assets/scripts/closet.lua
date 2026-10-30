@@ -38,7 +38,7 @@ hotspot.shelf = {
 hotspot.door = {
   look = function() say("The door back to the bar.") end,
   interact = function()
-    animate("closet_door", 0, 3)
+    play("closet_door", "open")
     setFrame("closet_door", 0)
     setFrame("door", 0)
     enterRoom("hall", 136, 90)

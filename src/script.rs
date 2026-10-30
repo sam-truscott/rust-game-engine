@@ -8,7 +8,7 @@ use macroquad::math::Vec2;
 use mlua::{Function, Lua, LuaOptions, StdLib, Thread};
 
 use crate::actor::Actor;
-use crate::room::{DEFAULT_FPS, Room};
+use crate::room::{Clip, DEFAULT_FPS, Prop, Room};
 use crate::world::World;
 
 /// The blocking calls are plain Lua wrappers: the Rust function only records what was asked for.
@@ -18,6 +18,8 @@ function say(text) __say(text) coroutine.yield() end
 function wait(seconds) __wait(seconds) coroutine.yield() end
 -- Plays frames first..last (0-based, either direction) of an animated prop, then stays on the last.
 function animate(id, first, last, fps) __animate(id, first, last, fps) coroutine.yield() end
+-- Plays a named clip from the prop's `clips` in its room file, e.g. play("barman", "pour").
+function play(id, clip) __play(id, clip) coroutine.yield() end
 -- Leaves for another room (its id, such as "closet"), arriving at x, y. The script carries on once there.
 function enterRoom(room, x, y) __enter_room(room, x, y) coroutine.yield() end
 
@@ -106,6 +108,7 @@ enum Command {
     Say(String),
     Wait(f32),
     Animate(String, usize, usize, Option<f32>),
+    Play(String, String),
     EnterRoom(String, f32, f32),
 }
 
@@ -190,6 +193,13 @@ impl ScriptRunner {
                 finite(fps.as_slice())?;
                 record(&p, Command::Animate(id, first, last, fps))
             }
+        );
+        bind!(
+            lua,
+            globals,
+            pending,
+            "__play",
+            |p, id: String, clip: String| record(&p, Command::Play(id, clip))
         );
         bind!(
             lua,
@@ -375,36 +385,45 @@ impl ScriptRunner {
                     self.scripts.remove(i);
                 }
                 Ok(()) if script.thread.is_resumable() => {
-                    script.waiting =
-                        self.pending
-                            .borrow_mut()
-                            .take()
-                            .map(|command| match command {
-                                Command::WalkTo(x, y) => {
-                                    actor.walk_to(room, x, y);
-                                    Waiting::Walking
-                                }
-                                Command::Say(text) => {
-                                    actor.say(&text);
-                                    Waiting::Speaking
-                                }
-                                Command::Wait(seconds) => Waiting::Seconds(seconds),
-                                Command::EnterRoom(room, x, y) => {
-                                    self.room_change = Some(RoomChange { room, x, y });
-                                    Waiting::Seconds(0.0)
-                                }
-                                Command::Animate(id, first, last, fps) => {
-                                    let fps = fps.unwrap_or_else(|| {
-                                        room.props()
-                                            .iter()
-                                            .find(|prop| prop.id.as_deref() == Some(id.as_str()))
-                                            .map_or(DEFAULT_FPS, |prop| prop.fps)
-                                    });
-                                    self.world.animate(&id, first, last, fps);
-                                    Waiting::Animating(id)
-                                }
-                            });
-                    i += 1;
+                    let command = self.pending.borrow_mut().take();
+                    let started = command
+                        .map(|command| match command {
+                            Command::WalkTo(x, y) => {
+                                actor.walk_to(room, x, y);
+                                Ok::<_, String>(Waiting::Walking)
+                            }
+                            Command::Say(text) => {
+                                actor.say(&text);
+                                Ok(Waiting::Speaking)
+                            }
+                            Command::Wait(seconds) => Ok(Waiting::Seconds(seconds)),
+                            Command::EnterRoom(room, x, y) => {
+                                self.room_change = Some(RoomChange { room, x, y });
+                                Ok(Waiting::Seconds(0.0))
+                            }
+                            Command::Animate(id, first, last, fps) => {
+                                let fps = fps.unwrap_or_else(|| prop_fps(room, &id));
+                                self.world.animate(&id, first, last, fps);
+                                Ok(Waiting::Animating(id))
+                            }
+                            Command::Play(id, name) => {
+                                let clip = find_clip(room, &id, &name)?;
+                                let fps = clip.fps.unwrap_or_else(|| prop_fps(room, &id));
+                                self.world.animate(&id, clip.first, clip.last, fps);
+                                Ok(Waiting::Animating(id))
+                            }
+                        })
+                        .transpose();
+                    match started {
+                        Ok(waiting) => {
+                            script.waiting = waiting;
+                            i += 1;
+                        }
+                        Err(error) => {
+                            eprintln!("[lua] {}: {error}", script.name);
+                            self.scripts.remove(i);
+                        }
+                    }
                 }
                 Ok(()) => {
                     println!("[lua] {} finished", script.name);
@@ -413,6 +432,28 @@ impl ScriptRunner {
             }
         }
     }
+}
+
+fn find_prop<'a>(room: &'a Room, id: &str) -> Option<&'a Prop> {
+    room.props()
+        .iter()
+        .find(|prop| prop.id.as_deref() == Some(id))
+}
+
+fn prop_fps(room: &Room, id: &str) -> f32 {
+    find_prop(room, id).map_or(DEFAULT_FPS, |prop| prop.fps)
+}
+
+/// The clip `name` of the prop `id` in this room, or an error saying what is there.
+fn find_clip(room: &Room, id: &str, name: &str) -> Result<Clip, String> {
+    let prop = find_prop(room, id).ok_or_else(|| format!("play: no prop '{id}' in this room"))?;
+    prop.clips.get(name).copied().ok_or_else(|| {
+        let known: Vec<&str> = prop.clips.keys().map(String::as_str).collect();
+        format!(
+            "play: '{id}' has no clip '{name}' (it has: {})",
+            known.join(", ")
+        )
+    })
 }
 
 /// A Lua state with only the pure libraries (`libs` from `TABLE`, `STRING`, `MATH`, `COROUTINE`,

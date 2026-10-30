@@ -38,7 +38,7 @@ hotspot.cupboard = {
 hotspot.door = {
   look = function() say("The door to the cupboard.") end,
   interact = function()
-    animate("door", 0, 3)
+    play("door", "open")
     enterRoom("closet", 180, 28)
   end,
 }
@@ -66,9 +66,9 @@ hotspot.barman = {
     coin = function()
       take("coin")
       say("One beer, please.")
-      animate("barman", 6, 7, 3)     -- takes the coin and pockets it
-      animate("barman", 8, 9, 3)     -- pours
-      animate("barman", 10, 11, 3)   -- slides the pint over
+      play("barman", "take_coin")
+      play("barman", "pour")
+      play("barman", "serve")
       give("beer")
       resume("barman")
       setFlag("served")

@@ -235,6 +235,7 @@ fn animate_uses_the_props_fps_from_the_room_unless_given() {
             frames: 4,
             fps: 2.0,
             idle: 0,
+            clips: Default::default(),
             glow: false,
             scale: 1.0,
         }],
@@ -299,4 +300,70 @@ fn animate_can_play_backwards_through_lua() {
     }
     assert!(!runner.is_running());
     assert_eq!(world.frame("door"), 0);
+}
+
+fn clip_room() -> Room {
+    Room::from_lua(
+        "return { walkArea = {{0,0},{100,0},{100,100},{0,100}},
+          props = {{ id = 'barman', image = 'x.png', x = 0, y = 0, frames = 8, fps = 2, idle = 'clean',
+            clips = { clean = {0, 3}, pour = {4, 5, fps = 20}, serve = {6, 7}, back = {5, 4} } }} }",
+        "clips",
+    )
+    .unwrap()
+}
+
+#[test]
+fn play_runs_a_named_clip_with_its_own_fps_or_the_props() {
+    let room = clip_room();
+    let mut actor = Actor::new(10.0, 50.0);
+    let world = game::world::World::default();
+    let mut runner = ScriptRunner::with_world(world.clone()).unwrap();
+    runner.start("test", "play('barman', 'pour')").unwrap();
+    for _ in 0..10 {
+        step(&mut runner, &room, &mut actor);
+    }
+    assert!(!runner.is_running(), "2 frames at 20 fps");
+    assert_eq!(world.frame("barman"), 5);
+
+    runner.start("test", "play('barman', 'serve')").unwrap();
+    for _ in 0..10 {
+        step(&mut runner, &room, &mut actor);
+    }
+    assert!(
+        runner.is_running(),
+        "2 frames at the prop's 2 fps take a second"
+    );
+}
+
+#[test]
+fn play_with_an_unknown_clip_or_prop_ends_the_script() {
+    let room = clip_room();
+    for source in ["play('barman', 'dance')", "play('ghost', 'pour')"] {
+        let mut actor = Actor::new(10.0, 50.0);
+        let mut runner = ScriptRunner::new().unwrap();
+        runner.start("test", source).unwrap();
+        step(&mut runner, &room, &mut actor);
+        assert!(!runner.is_running(), "{source}");
+    }
+}
+
+#[test]
+fn clips_load_from_the_room_and_idle_can_name_one() {
+    let room = clip_room();
+    let barman = &room.props()[0];
+    assert_eq!(barman.idle, 4);
+    assert_eq!(barman.clips["back"].first, 5);
+    assert_eq!(barman.clips["pour"].fps, Some(20.0));
+    for bad in [
+        "clips = { c = {0, 9} }",
+        "clips = { c = {0, 1, fps = 0} }",
+        "idle = 'nope'",
+        "clips = { c = {1, 2} }, idle = 'c'",
+    ] {
+        let source = format!(
+            "return {{ walkArea = {{{{0,0}},{{9,0}},{{9,9}}}},
+              props = {{{{ id = 'p', image = 'x.png', x = 0, y = 0, frames = 4, {bad} }}}} }}"
+        );
+        assert!(Room::from_lua(&source, "bad").is_err(), "{bad}");
+    }
 }

@@ -13,7 +13,7 @@ return {
   props = {
     { id = "closet_switch", image = "props/switch.png", x = 156, y = 62, frames = 2, glow = true, scale = 4 },
     { id = "key", image = "props/key.png", x = 146, y = 63, scale = 4 },
-    { id = "closet_door", image = "props/door.png", x = 164, y = 36, frames = 4, fps = 10, scale = 4 },
+    { id = "closet_door", image = "props/door.png", x = 164, y = 36, frames = 4, fps = 10, scale = 4, clips = { open = { 0, 3 }, close = { 3, 0 } } },
   },
   hotspots = {
     { id = "shelf", name = "shelf", rect = { 124, 58, 32, 40 }, walkTo = { 146, 24 } },

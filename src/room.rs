@@ -1,5 +1,7 @@
+use std::collections::BTreeMap;
+
 use macroquad::math::{Rect, Vec2, vec2};
-use mlua::Table;
+use mlua::{Table, Value};
 
 use crate::pathfinder;
 
@@ -23,6 +25,15 @@ pub struct Segment {
     pub b: Vec2,
 }
 
+/// A named run of frames of an animated prop. `first > last` plays it backwards.
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub struct Clip {
+    pub first: usize,
+    pub last: usize,
+    /// Overrides the prop's own `fps`.
+    pub fps: Option<f32>,
+}
+
 /// An image placed in the room; characters with a smaller y than the depth are drawn in front of it.
 #[derive(Clone, Debug)]
 pub struct Prop {
@@ -38,6 +49,8 @@ pub struct Prop {
     pub fps: f32,
     /// Loops this many leading frames for ever while no script is animating the prop (0: stays on frame 0).
     pub idle: usize,
+    /// Named frame runs scripts play with `play(id, name)`.
+    pub clips: BTreeMap<String, Clip>,
     /// Drawn above the darkness of an unlit room, so it can still be seen (a light switch).
     pub glow: bool,
     /// Image pixels per game unit: 1 for art drawn at the game's own resolution, 4 for art drawn at
@@ -141,15 +154,38 @@ impl Room {
         let obstacles = list(&table, "obstacles", |ring| read_points(&ring))?;
         let props = list(&table, "props", |prop| {
             let y: f32 = prop.get("y")?;
+            let frames = prop.get::<Option<usize>>("frames")?.unwrap_or(1).max(1);
+            let clips = read_clips(prop.get("clips")?, frames)?;
+            let idle = match prop.get::<Value>("idle")? {
+                Value::Nil => 0,
+                Value::String(name) => {
+                    let name = name.to_str()?;
+                    match clips.get(&*name) {
+                        Some(Clip { first: 0, last, .. }) => last + 1,
+                        _ => {
+                            return Err(mlua::Error::runtime(format!(
+                                "idle clip '{name}' must be a forward clip starting at frame 0"
+                            )));
+                        }
+                    }
+                }
+                Value::Integer(count) if count >= 0 => count as usize,
+                _ => {
+                    return Err(mlua::Error::runtime(
+                        "idle is a frame count or the name of a clip",
+                    ));
+                }
+            };
             Ok(Prop {
                 id: prop.get("id")?,
                 image: prop.get("image")?,
                 x: prop.get("x")?,
                 y,
                 depth: prop.get::<Option<f32>>("depth")?.unwrap_or(y),
-                frames: prop.get::<Option<usize>>("frames")?.unwrap_or(1).max(1),
+                frames,
                 fps: prop.get::<Option<f32>>("fps")?.unwrap_or(DEFAULT_FPS),
-                idle: prop.get::<Option<usize>>("idle")?.unwrap_or(0),
+                idle,
+                clips,
                 glow: prop.get::<Option<bool>>("glow")?.unwrap_or(false),
                 scale: prop
                     .get::<Option<f32>>("scale")?
@@ -321,6 +357,33 @@ fn list<T>(
             .map(|item| read(item?))
             .collect()
     })
+}
+
+/// `clips = { name = { first, last, fps = n? }, ... }`; a clip of one frame is `{ n }`.
+fn read_clips(clips: Option<Table>, frames: usize) -> mlua::Result<BTreeMap<String, Clip>> {
+    let Some(clips) = clips else {
+        return Ok(BTreeMap::new());
+    };
+    clips
+        .pairs::<String, Table>()
+        .map(|entry| {
+            let (name, clip) = entry?;
+            let first: usize = clip.get(1)?;
+            let last = clip.get::<Option<usize>>(2)?.unwrap_or(first);
+            let fps = clip.get::<Option<f32>>("fps")?;
+            if first >= frames || last >= frames {
+                return Err(mlua::Error::runtime(format!(
+                    "clip '{name}' uses frames {first}-{last} but the prop has {frames}"
+                )));
+            }
+            if fps.is_some_and(|fps| !fps.is_finite() || fps <= 0.0) {
+                return Err(mlua::Error::runtime(format!(
+                    "clip '{name}' needs a positive fps"
+                )));
+            }
+            Ok((name, Clip { first, last, fps }))
+        })
+        .collect()
 }
 
 /// A ring of at least three finite points.
