@@ -2,25 +2,25 @@
 # Run: target/debug/game.exe --auto play/closet.txt --out screenshots
 # Positions are screen points (320x180, y up): add 26 to a room y. Two `click`s in a row are a double click.
 wait 3
-click 146 136
-click 146 136               # double click the door in the bar: walk there, it opens, we go in
+click 136 149
+click 136 149               # double click the door in the bar: walk there, it opens, we go in
 wait 3.5
 shot k1_door_opening        # at the door in the bar
 wait 1.5
-where                       # room=closet at (182, 28)
+where                       # room=closet at (180, 28)
 shot k2_dark                # black apart from the outline of a light switch
-click 163 86
-click 163 86                # double click the switch
+click 160 102
+click 160 102                # double click the switch
 wait 2
-where                       # at (162, 26)
+where                       # at (160, 26)
 shot k3_lit                 # the closet lit: shelves of glasses, the switch plate, the door
 click 140 106               # look at the shelf
 wait 1.5
 shot k4_shelf               # "Shelves of clean glasses for the pub."
 wait 2
-click 182 76
-click 182 76                # double click the door: back to the bar
+click 180 89
+click 180 89                # double click the door: back to the bar
 wait 3
-where                       # room=hall at (146, 90)
+where                       # room=hall at (136, 90)
 shot k5_back
 quit

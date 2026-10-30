@@ -11,12 +11,12 @@ return {
     { 126, 36 },
   },
   props = {
-    { id = "closet_switch", image = "props/switch.png", x = 159, y = 54, frames = 2, glow = true, scale = 4 },
-    { id = "closet_door", image = "props/door.png", x = 168, y = 36, frames = 4, fps = 10, scale = 4 },
+    { id = "closet_switch", image = "props/switch.png", x = 156, y = 70, frames = 2, glow = true, scale = 4 },
+    { id = "closet_door", image = "props/door.png", x = 164, y = 36, frames = 4, fps = 10, scale = 4 },
   },
   hotspots = {
     { id = "shelf", name = "shelf", rect = { 124, 58, 32, 40 }, walkTo = { 146, 24 } },
-    { id = "switch", name = "light switch", rect = { 158, 53, 10, 14 }, walkTo = { 162, 26 } },
-    { id = "door", name = "door", rect = { 168, 36, 28, 36 }, walkTo = { 182, 28 } },
+    { id = "switch", name = "light switch", rect = { 155, 69, 10, 14 }, walkTo = { 160, 26 } },
+    { id = "door", name = "door", rect = { 164, 36, 32, 54 }, walkTo = { 180, 28 } },
   },
 }

@@ -48,7 +48,7 @@ hotspot.door = {
   look = function() say("The door to the cupboard.") end,
   interact = function()
     animate("door", 0, 3)
-    enterRoom("closet", 182, 28)
+    enterRoom("closet", 180, 28)
   end,
 }
 

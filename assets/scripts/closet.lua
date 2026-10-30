@@ -41,6 +41,6 @@ hotspot.door = {
     animate("closet_door", 0, 3)
     setFrame("closet_door", 0)
     setFrame("door", 0)
-    enterRoom("hall", 146, 90)
+    enterRoom("hall", 136, 90)
   end,
 }

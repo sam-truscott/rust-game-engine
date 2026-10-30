@@ -6,14 +6,14 @@ use game::ui::{RENDER_SCALE, SCREEN_HEIGHT, SCREEN_WIDTH};
 use game::world::World;
 use macroquad::prelude::*;
 
-pub const FRAME_WIDTH: f32 = 16.0;
-pub const FRAME_HEIGHT: f32 = 32.0;
+pub const FRAME_WIDTH: f32 = 24.0;
+pub const FRAME_HEIGHT: f32 = 48.0;
 
 const WALK_FRAMES: usize = 6;
 /// Sheet columns: idle, then the walk cycle; rows: front, back, side.
 const SHEET_COLUMNS: f32 = (WALK_FRAMES + 1) as f32;
 const SHEET_ROWS: f32 = 3.0;
-const DISTANCE_PER_FRAME: f32 = 5.0;
+const DISTANCE_PER_FRAME: f32 = 7.5;
 /// What covers an unlit room; almost opaque.
 const DARKNESS: Color = Color::new(0.0, 0.0, 0.0, 0.99);
 

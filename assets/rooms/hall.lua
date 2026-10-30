@@ -16,20 +16,20 @@ return {
     -- table and its two chairs
     { { 52, 40 }, { 118, 40 }, { 118, 54 }, { 52, 54 } },
     -- corner cupboard
-    { { 30, 80 }, { 58, 80 }, { 58, 82 }, { 30, 82 } },
+    { { 30, 80 }, { 60, 80 }, { 60, 82 }, { 30, 82 } },
   },
   props = {
     { image = "props/table.png", x = 52, y = 40, scale = 4 },
     { image = "props/bar.png", x = 160, y = 52, scale = 4 },
     { id = "cupboard", image = "props/cupboard.png", x = 30, y = 80, scale = 4 },
-    { id = "door", image = "props/door.png", x = 132, y = 96, frames = 4, fps = 10, scale = 4 },
+    { id = "door", image = "props/door.png", x = 120, y = 96, frames = 4, fps = 10, scale = 4 },
     { id = "key", image = "props/key.png", x = 73, y = 78, scale = 4 },
   },
   hotspots = {
     { id = "table", name = "table", rect = { 52, 40, 66, 34 }, walkTo = { 85, 30 } },
-    { id = "cupboard", name = "cupboard", rect = { 30, 80, 28, 36 }, walkTo = { 44, 70 } },
-    { id = "window", name = "window", rect = { 66, 101, 62, 48 }, walkTo = { 96, 80 } },
-    { id = "door", name = "door", rect = { 132, 96, 28, 36 }, walkTo = { 146, 90 } },
+    { id = "cupboard", name = "cupboard", rect = { 30, 80, 30, 50 }, walkTo = { 45, 70 } },
+    { id = "window", name = "window", rect = { 64, 118, 46, 34 }, walkTo = { 88, 80 } },
+    { id = "door", name = "door", rect = { 120, 96, 32, 54 }, walkTo = { 136, 90 } },
     { id = "bottles", name = "bottles", rect = { 166, 100, 148, 50 }, walkTo = { 240, 40 } },
     { id = "bar", name = "bar", rect = { 160, 52, 160, 36 }, walkTo = { 240, 40 } },
     { id = "key", name = "brass key", rect = { 68, 75, 20, 12 }, walkTo = { 78, 70 } },
