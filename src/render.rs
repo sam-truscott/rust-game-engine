@@ -200,9 +200,9 @@ impl CursorSprite {
         }
     }
 
-    /// The image size in game units (one image pixel per unit).
+    /// The image size in game units (the image has `RENDER_SCALE` pixels per unit).
     pub fn size(&self) -> Vec2 {
-        vec2(self.texture.width(), self.texture.height())
+        vec2(self.texture.width(), self.texture.height()) / RENDER_SCALE as f32
     }
 
     /// Draws the pointer with its hot spot at a window point, each pixel of the image `scale` window

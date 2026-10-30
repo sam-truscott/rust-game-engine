@@ -19,11 +19,11 @@ return {
     { { 30, 80 }, { 58, 80 }, { 58, 82 }, { 30, 82 } },
   },
   props = {
-    { image = "props/table.png", x = 52, y = 40 },
-    { image = "props/bar.png", x = 160, y = 52 },
-    { id = "cupboard", image = "props/cupboard.png", x = 30, y = 80 },
-    { id = "door", image = "props/door.png", x = 132, y = 96, frames = 4, fps = 10 },
-    { id = "key", image = "props/key.png", x = 73, y = 78 },
+    { image = "props/table.png", x = 52, y = 40, scale = 4 },
+    { image = "props/bar.png", x = 160, y = 52, scale = 4 },
+    { id = "cupboard", image = "props/cupboard.png", x = 30, y = 80, scale = 4 },
+    { id = "door", image = "props/door.png", x = 132, y = 96, frames = 4, fps = 10, scale = 4 },
+    { id = "key", image = "props/key.png", x = 73, y = 78, scale = 4 },
   },
   hotspots = {
     { id = "table", name = "table", rect = { 52, 40, 66, 34 }, walkTo = { 85, 30 } },

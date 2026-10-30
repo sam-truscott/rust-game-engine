@@ -11,8 +11,8 @@ return {
     { 126, 36 },
   },
   props = {
-    { id = "closet_switch", image = "props/switch.png", x = 159, y = 54, frames = 2, glow = true },
-    { id = "closet_door", image = "props/door.png", x = 168, y = 36, frames = 4, fps = 10 },
+    { id = "closet_switch", image = "props/switch.png", x = 159, y = 54, frames = 2, glow = true, scale = 4 },
+    { id = "closet_door", image = "props/door.png", x = 168, y = 36, frames = 4, fps = 10, scale = 4 },
   },
   hotspots = {
     { id = "shelf", name = "shelf", rect = { 124, 58, 32, 40 }, walkTo = { 146, 24 } },
