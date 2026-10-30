@@ -1,0 +1,23 @@
+# Walk behind the window frame, then in front of the counter, then restart.
+# Run: target/debug/game.exe --auto play/hall.txt --out screenshots
+# The `where` lines print the player's state; compare them with the comments.
+wait 3
+shot 01_start
+click 256 72
+wait 0.4
+shot 02_walking
+wait 6
+where            # (256, 72) facing Right, not walking
+shot 03_behind_window
+key f1
+shot 04_overlay
+key f1
+click 160 30
+wait 5
+where            # (160, 30) facing Left, not walking
+shot 05_front
+key r
+wait 0.1
+where            # (60, 50) facing Front, speaking, intro script running again
+shot 06_restarted
+quit

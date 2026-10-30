@@ -1,55 +1,63 @@
 # Game
 
-2D point-and-click adventure engine and game in the style of Thimbleweed Park (own engine, story, art and puzzles). Java 21, LibGDX 1.14.2, LuaJ 3.0.1 for scripting, Maven, Eclipse. Package `com.wumpus.game`.
+2D point-and-click adventure engine and game in the style of Thimbleweed Park (own engine, story, art and puzzles). Rust (edition 2024), macroquad for window/input/drawing, mlua (vendored Lua 5.4) for scripting. Crate name `game`.
+
+This is the `rust-port` branch. The earlier Java/LibGDX/LuaJ version (Maven, Eclipse) is on `master`; `git show master:src/main/java/com/wumpus/game/<File>.java` shows any original file.
 
 ## Environment (Windows 11 on ARM64)
 
-- LibGDX ships no Windows ARM64 natives (`gdxarm64.dll` is missing), so the game **must run on an x64 JDK** under emulation: `C:\dev\x64_jdk-25.0.4.1+1`. The ARM64 JDKs (`C:\dev\jdk-21.0.8+9`, `C:\dev\jdk-25.0.4.1+1`) build fine but fail at launch. In Eclipse, select the x64 JDK under Installed JREs for the project, or Run As fails with the same error.
-- Maven is `C:\dev\apache-maven-3.10.0`. Shell state does not persist between tool calls, so reload `PATH` from the machine and user environment in the same command (`$env:Path = [Environment]::GetEnvironmentVariable('Path','Machine') + ';' + [Environment]::GetEnvironmentVariable('Path','User')`).
-- `maven.compiler.release` is 21; the installed JDKs are newer, which is fine.
+- Rust is installed in `C:\Users\Sam\.cargo\bin`, default host `aarch64-pc-windows-msvc`, so builds and the game are **native ARM64**. This needs the "MSVC Build Tools for ARM64/ARM64EC" component of the Visual Studio Build Tools; without it linking fails with a confusing `link: extra operand` error (cargo falls back to Git Bash's own `link` command).
+- Shell state does not persist between tool calls and `cargo` is not on `PATH` in Git Bash, so start commands with `export PATH="$PATH:/c/Users/Sam/.cargo/bin"`. The PowerShell tool may be unavailable; Git Bash can still run `powershell.exe`, but see "Verifying" before using it.
+- Mlua compiles Lua from C source, which needs the MSVC `cl.exe`; that already works here.
 
-## Build and run
+## Build, test, run
 
 ```
-mvn package        # compiles, runs the unit tests, builds the shaded jar
-C:\dev\x64_jdk-25.0.4.1+1\bin\java.exe -jar target\game-0.1.0-SNAPSHOT.jar
+cargo build            # debug; assets are read from assets/ on disk, so edits show up after pressing R
+cargo test             # unit and integration tests, no GL needed
+cargo clippy --all-targets   # kept warning-free
+cargo fmt              # default rustfmt settings
+cargo build --release  # ~1.5 MB exe with assets/ embedded (rust-embed); runs from any directory
+target/debug/game.exe
 ```
 
-- Packaging uses `maven-shade-plugin` (chosen over the Spring Boot repackager). The long list of "overlapping resource" warnings (LWJGL `.sha1` files) is harmless; leave the files in, LWJGL uses them when extracting natives.
-- The manifest sets `Enable-Native-Access` to silence the Java 25 warning. Two LWJGL 3.3.3 warnings remain (`sun.misc.Unsafe`, "Unsupported JNI version"); they come from LibGDX's bundled LWJGL on JDK 25 and are harmless.
 - Controls: click to walk (ignored while a script runs), **R** restarts, **F1** toggles an overlay of the authored (green) and margin-adjusted (yellow) walk areas.
+- Debug builds read `assets/` from the path baked in at compile time, release builds embed it, so a release exe is self-contained.
+
+## The miniquad patch (do not remove casually)
+
+macroquad sits on miniquad 0.4.11 (the newest release), which only stores its window state pointer on x86/x86_64. On aarch64 that call is compiled out, so **no keyboard or mouse input reaches the game and closing the window never ends the process**. `vendor/miniquad` is the published crate with four `cfg` guards changed to `target_pointer_width` (plus an `#![allow]` for two upstream warnings); `Cargo.toml` points at it with `[patch.crates-io]`. See `vendor/miniquad/PATCHES.md`. Drop both once upstream fixes it. Never run `cargo fmt` or clippy over `vendor/`.
 
 ## Architecture
 
-- `Main` / `GameApp`: window, 320x180 virtual resolution (`FitViewport`), input, main loop. `Main` calls `System.exit(0)` after the app ends as a safety net, since LuaJ's coroutine threads are non-daemon.
-- `Room`: loads `rooms/*.lua`; holds the walk outline, obstacles, props and background. Walking geometry is the outline shrunk and the obstacles grown by `margin`; the authored polygons are kept for drawing and the F1 overlay.
-- `PathFinder`: visibility graph over the room's corners plus Dijkstra. Corner-to-corner visibility is precomputed per room; only start and goal are tested per click. Targets that are not walkable are moved to the nearest boundary point.
-- `Actor`: position (the feet), path following, facing, distance walked, speech. `CharacterSprite` draws it.
-- `RoomRenderer`: draws the background, then props and characters sorted back to front.
-- `ScriptRunner`: runs Lua scripts as LuaJ coroutines. `walkTo(x, y)`, `say(text)` and `wait(seconds)` start an `Action` and yield; the script resumes when the action finishes. Add a new blocking call with `register(name, args -> Action)`.
+- `src/lib.rs` (crate `game`, no rendering, fully testable): `room` (walk outline, obstacles, props, Lua room loading, polygon offset), `pathfinder` (visibility graph + Dijkstra), `actor` (path following, facing, distance walked, speech), `script` (Lua coroutines), `direction`, `assets` (rust-embed).
+- `src/main.rs`: macroquad app. `src/render.rs`: `CharacterSprite` and `RoomRenderer` (back-to-front depth sort). `src/automation.rs`: scripted play (below).
+- `Room` stores the precomputed corner-to-corner visibility; `pathfinder::find` only borrows the room. Only start and goal are tested per click. Targets that are not walkable move to the nearest boundary point.
+- Scripts: `walkTo(x, y)`, `say(text)`, `wait(seconds)` are small Lua wrappers (in `script.rs`) that call a Rust function, which only records a `Command`, and then `coroutine.yield()`. `ScriptRunner::update` applies the command to the actor and resumes the script once the action has finished. A suspended coroutine is simply dropped, so there are no threads to clean up. To add a blocking call: a Rust function that records a `Command`, a wrapper in `PRELUDE`, and a match arm in `update`.
+- Rendering: the room draws into a 320x180 render target, which is scaled with nearest filtering and letterboxed. Speech text and the F1 overlay are drawn afterwards at window resolution so they stay crisp. Screenshots render the same frame at 1280x720 into an offscreen target.
 
 ## Conventions and data formats
 
-- Coordinates are in the 320x180 virtual space, **y up**, origin bottom-left. An actor's position is its feet; sprites are drawn with their feet there.
-- Depth: larger y is further back and drawn first. A prop's `depth` defaults to its `y`, so characters with a smaller y are drawn in front of it.
-- Room file (`rooms/*.lua`) returns `{ background, margin, walkArea = {{x,y},...}, obstacles = {{{x,y},...},...}, props = {{image, x, y, depth?},...} }`. Obstacles are walking footprints only; their visuals are props. Image paths are classpath-relative.
-- Character sheet: 16x32 frames, rows front / back / side (facing right), columns idle then 6 walk frames. Left is the side view mirrored. Walk frames advance every 5 units walked, so the feet do not slide.
-- Constraints on room geometry: obstacle rings, once grown by the margin, must not overlap each other or the shrunk outline's edge; very narrow or sharp features can make the offset polygons fold over themselves. The margin is per room, not per actor.
+- Coordinates are in the 320x180 virtual space, **y up**, origin bottom-left. An actor's position is its feet. Only `render.rs` and `main.rs` flip to the y-down screen, using `VIRTUAL_HEIGHT - y`.
+- Depth: larger y is further back and drawn first. A prop's `depth` defaults to its `y`; ties draw the actor last.
+- Room file (`assets/rooms/*.lua`) returns `{ background, margin, walkArea = {{x,y},...}, obstacles = {{{x,y},...},...}, props = {{image, x, y, depth?},...} }`. Obstacles are walking footprints only; their visuals are props. Image paths are relative to `assets/`.
+- Character sheet: 16x32 frames, rows front / back / side (facing right), columns idle then 6 walk frames. Left is the side view mirrored. Walk frames advance every 5 units walked.
+- Geometry limits: obstacle rings, once grown by the margin, must not overlap each other or the shrunk outline's edge; very narrow or sharp features can make the offset polygons fold over themselves. The margin is per room, not per actor.
 - Comments are kept sparse: only where the code is not obvious from names.
 
-## Testing
+## Verifying changes
 
-- JUnit 5 tests run in `mvn package` and need no GL: `PathFinderTest`, `ActorTest`. `Room` can be built from arrays without LibGDX; `Room.load` needs `Gdx.files`. Rendering has no automated test.
-- To check behaviour in the running game, drive it with scripted clicks and screenshots (PowerShell with `SetProcessDPIAware`, `SetCursorPos`, `mouse_event`, `CopyFromScreen`). Leave a gap of about 100-200 ms between moving the cursor and pressing, or the game reads the old cursor position and drops the click. Close the window with `PostMessage(WM_CLOSE)` to the process's `MainWindowHandle`.
-- The scripts used for this and for generating art lived in the session scratch folder and are not in the repo.
+- `cargo test` covers pathfinding, actor, scripting, room loading and the automation parser (32 tests). Rendering has no unit test.
+- **Use scripted play, never OS-level input or screen capture.** `target/debug/game.exe --auto play/hall.txt --out screenshots` feeds clicks and keys straight into the game, uses a fixed time step, prints `[state]` lines for `where` and renders `shot` images offscreen. It is deterministic (debug and release give byte-identical PNGs) and works whatever has focus. Commands are listed at the top of `src/automation.rs`. Look at the PNGs with the Read tool.
+- Earlier in this port a PowerShell harness (`SetCursorPos`, `mouse_event`, `keybd_event`, `CopyFromScreen`) sent F1 and clicks to the user's Brave browser because the game window was not in front, and captured part of their screen. Do not use that approach again.
 
 ## Art
 
-All art is placeholder, generated with `System.Drawing` scripts (not in the repo): `characters/player.png`, `rooms/hall.png`, `props/counter.png`, `props/window.png`. Replace the files in place, keeping the layouts above.
+All art is placeholder, generated by throwaway scripts (not in the repo): `assets/characters/player.png`, `assets/rooms/hall.png`, `assets/props/counter.png`, `assets/props/window.png`. Replace the files in place, keeping the layouts above.
 
 ## Not done yet
 
-- Hotspots and verbs (the planned next step), inventory, dialogue UI, save/load, audio.
+- Hotspots and verbs (the planned next step), inventory, dialogue UI, save/load, audio (macroquad's `audio` feature is off).
 - Scripts can only drive the player; no other actors, and no switching rooms.
 - Four facings only, no diagonal views.
 
