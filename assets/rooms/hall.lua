@@ -23,7 +23,6 @@ return {
     { image = "props/bar.png", x = 160, y = 52, scale = 4 },
     { id = "cupboard", image = "props/cupboard.png", x = 30, y = 80, scale = 4 },
     { id = "door", image = "props/door.png", x = 120, y = 96, frames = 4, fps = 10, scale = 4 },
-    { id = "key", image = "props/key.png", x = 73, y = 78, scale = 4 },
   },
   hotspots = {
     { id = "table", name = "table", rect = { 52, 40, 66, 34 }, walkTo = { 85, 30 } },
@@ -32,6 +31,5 @@ return {
     { id = "door", name = "door", rect = { 120, 96, 32, 54 }, walkTo = { 136, 90 } },
     { id = "bottles", name = "bottles", rect = { 166, 100, 148, 50 }, walkTo = { 240, 40 } },
     { id = "bar", name = "bar", rect = { 160, 52, 160, 36 }, walkTo = { 240, 40 } },
-    { id = "key", name = "brass key", rect = { 68, 75, 20, 12 }, walkTo = { 78, 70 } },
   },
 }

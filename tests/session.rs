@@ -82,10 +82,24 @@ fn next_words(session: &mut Session) -> String {
     panic!("nobody spoke");
 }
 
-fn with_the_key() -> Session {
+/// A session in the closet with the light on, where the key is.
+fn in_the_lit_closet() -> Session {
     let mut session = session();
-    double_click(&mut session, point("hall", "key"));
+    double_click(&mut session, point("hall", "door"));
     settle(&mut session);
+    assert_eq!(session.room_id, "closet");
+    session.world.set_light("closet", true);
+    session
+}
+
+/// A session back in the hall carrying the key from the closet shelf.
+fn with_the_key() -> Session {
+    let mut session = in_the_lit_closet();
+    double_click(&mut session, point("closet", "key"));
+    settle(&mut session);
+    double_click(&mut session, point("closet", "door"));
+    settle(&mut session);
+    assert_eq!(session.room_id, "hall");
     session
 }
 
@@ -98,7 +112,7 @@ fn hotspots_are_found_by_their_room_position() {
             .map(|hotspot| hotspot.id.as_str())
     };
     assert_eq!(at(point("hall", "bar")), Some("bar"));
-    assert_eq!(at(point("hall", "key")), Some("key"));
+    assert_eq!(at(point("hall", "door")), Some("door"));
     assert_eq!(at(point("hall", "window")), Some("window"));
     assert_eq!(at(FLOOR), None);
 }
@@ -189,23 +203,23 @@ fn clicks_wait_while_the_intro_runs() {
 
 #[test]
 fn single_clicks_are_ignored_while_a_script_runs() {
-    let mut session = session();
-    double_click(&mut session, point("hall", "key"));
+    let mut session = in_the_lit_closet();
+    double_click(&mut session, point("closet", "key"));
     assert_eq!(next_words(&mut session), "Got it.");
 
     session.click(SLOT_0);
-    session.click(point("hall", "bar"));
+    session.click(point("closet", "shelf"));
     session.click(FLOOR);
     assert!(!session.player.is_walking());
     settle(&mut session);
     assert_eq!(session.world.items(), vec!["brass_key"]);
-    assert_eq!(session.player.position(), stand("hall", "key"));
+    assert_eq!(session.player.position(), stand("closet", "key"));
 }
 
 #[test]
 fn clicks_are_ignored_while_an_action_is_playing_out() {
-    let mut session = session();
-    double_click(&mut session, point("hall", "key"));
+    let mut session = in_the_lit_closet();
+    double_click(&mut session, point("closet", "key"));
     assert_eq!(next_words(&mut session), "Got it.");
     assert!(session.scripts.is_running());
     assert!(session.input_locked());
@@ -218,40 +232,51 @@ fn clicks_are_ignored_while_an_action_is_playing_out() {
     assert!(!session.input_locked());
     double_click(&mut session, SLOT_0);
     assert_eq!(session.holding.as_deref(), Some("brass_key"));
-
-    click(&mut session, point("hall", "cupboard"));
-    assert_eq!(next_words(&mut session), "The key fits the cupboard!");
 }
 
 #[test]
 fn interacting_with_the_key_puts_it_in_the_inventory_and_removes_it_from_the_room() {
-    let mut session = session();
+    let mut session = in_the_lit_closet();
     assert!(
         session
-            .hotspot_at(ui::to_room(point("hall", "key")))
+            .hotspot_at(ui::to_room(point("closet", "key")))
             .is_some()
     );
 
-    double_click(&mut session, point("hall", "key"));
+    double_click(&mut session, point("closet", "key"));
     assert!(session.scripts.is_running());
     settle(&mut session);
 
     assert_eq!(session.world.items(), vec!["brass_key"]);
     assert!(session.world.is_hidden("key"));
-    assert!(
-        session
-            .hotspot_at(ui::to_room(point("hall", "key")))
-            .is_none()
-    );
-    assert_eq!(session.player.position(), stand("hall", "key"));
+    let under = session
+        .hotspot_at(ui::to_room(point("closet", "key")))
+        .map(|hotspot| hotspot.id.as_str());
+    assert_eq!(under, Some("shelf"));
+    assert_eq!(session.player.position(), stand("closet", "key"));
 }
 
 #[test]
-fn once_picked_up_clicking_where_the_key_was_just_walks() {
-    let mut session = with_the_key();
-    click(&mut session, point("hall", "key"));
-    assert!(session.player.is_walking());
-    assert!(!session.scripts.is_running());
+fn the_key_cannot_be_taken_in_the_dark() {
+    let mut session = in_the_lit_closet();
+    session.world.set_light("closet", false);
+    double_click(&mut session, point("closet", "key"));
+    assert_eq!(next_words(&mut session), "I can't see a thing in here.");
+    settle(&mut session);
+    assert!(session.world.items().is_empty());
+    assert!(!session.world.is_hidden("key"));
+}
+
+#[test]
+fn once_picked_up_clicking_where_the_key_was_looks_at_the_shelf() {
+    let mut session = in_the_lit_closet();
+    double_click(&mut session, point("closet", "key"));
+    settle(&mut session);
+    click(&mut session, point("closet", "key"));
+    assert_eq!(
+        next_words(&mut session),
+        "Shelves of clean glasses for the pub."
+    );
 }
 
 #[test]

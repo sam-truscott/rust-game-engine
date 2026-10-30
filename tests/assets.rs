@@ -13,20 +13,20 @@ fn hall_loads_with_its_background_obstacles_and_props() {
     assert_eq!(room.background(), Some("rooms/hall.png"));
     assert_eq!(room.outline().len(), 6);
     assert_eq!(room.obstacles().len(), 2);
-    assert_eq!(room.props().len(), 5);
+    assert_eq!(room.props().len(), 4);
     assert_eq!(room.props()[0].depth, room.props()[0].y);
-    assert_eq!(room.hotspots().len(), 7);
+    assert_eq!(room.hotspots().len(), 6);
 }
 
 #[test]
 fn a_prop_with_an_id_can_be_hidden_by_the_hotspot_with_the_same_id() {
     let room = hall();
-    let key = room
+    let door = room
         .props()
         .iter()
-        .find(|prop| prop.id.as_deref() == Some("key"));
-    assert!(key.is_some(), "the key prop has no id");
-    assert!(room.hotspots().iter().any(|hotspot| hotspot.id == "key"));
+        .find(|prop| prop.id.as_deref() == Some("door"));
+    assert!(door.is_some(), "the door prop has no id");
+    assert!(room.hotspots().iter().any(|hotspot| hotspot.id == "door"));
 }
 
 #[test]

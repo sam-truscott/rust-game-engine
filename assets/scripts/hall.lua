@@ -22,15 +22,6 @@ hotspot.window = {
   interact = function() say("It doesn't open.") end,
 }
 
-hotspot.key = {
-  look = function() say("A small brass key.") end,
-  interact = function()
-    give("brass_key")
-    hide("key")
-    say("Got it.")
-  end,
-}
-
 hotspot.cupboard = {
   look = function() say("A little cupboard in the corner.") end,
   interact = function() say("It's locked.") end,

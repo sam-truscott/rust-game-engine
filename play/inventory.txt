@@ -1,26 +1,36 @@
-# Pick up the key, use it on the cupboard, look at the coin.
+# Go into the closet, switch the light on, take the key from the shelf, come back and use it on the
+# cupboard, look at the coin.
 # Run: target/debug/game.exe --auto play/inventory.txt --out screenshots
 # Positions are screen points (320x180, y up): the room is above the 26-high panel, so a room point
 # (x, y) is clicked at (x, y + 26). Two `click`s in a row are a double click.
 # Inventory slots (centres): 16,13  44,13  72,13 ...
 wait 3
-shot i1_start               # key on the floor at the left, inventory slots empty
-move 78 107                 # over the key
-click 78 107
-click 78 107                # double click: interact, which picks it up
-wait 7
-shot i2_picked_up           # key gone from the floor, in the first slot
-where                       # at (78, 70), carrying ["brass_key"]
+shot i1_start               # inventory slots empty
+click 136 149
+click 136 149               # double click the door: into the dark closet
+wait 6
+click 160 102
+click 160 102              # double click the switch: lights on
+wait 3
+move 151 92
+click 151 92
+click 151 92                # double click the key on the shelf: pick it up
+wait 6
+shot i2_picked_up           # key gone from the shelf, in the first slot
+where                       # in the closet at (150, 24), carrying ["brass_key"]
+click 180 89
+click 180 89                # double click the door: back to the bar
+wait 6
 
 click 16 13
 click 16 13                 # double click the key in the inventory: hold it
 shot i3_holding_key         # the key's slot highlighted
-move 44 126
-click 44 126                # the cupboard: use the key on it
+move 45 126
+click 45 126                # the cupboard: use the key on it
 wait 4.5
 shot i4_cupboard               # "The key fits the cupboard!"
 wait 7
-where                       # at (44, 70), carrying ["coin"]
+where                       # at (45, 70), carrying ["coin"]
 
 click 16 13                 # single click the coin: look at it
 wait 1.5

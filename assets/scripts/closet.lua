@@ -44,3 +44,22 @@ hotspot.door = {
     enterRoom("hall", 136, 90)
   end,
 }
+
+hotspot.key = {
+  look = function()
+    if isLit("closet") then
+      say("A small brass key, left on the shelf.")
+    else
+      say("I can't see a thing in here.")
+    end
+  end,
+  interact = function()
+    if isLit("closet") then
+      give("brass_key")
+      hide("key")
+      say("Got it.")
+    else
+      say("I can't see a thing in here.")
+    end
+  end,
+}
