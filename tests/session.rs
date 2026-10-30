@@ -203,15 +203,21 @@ fn single_clicks_are_ignored_while_a_script_runs() {
 }
 
 #[test]
-fn an_item_can_be_picked_while_an_action_is_still_playing_out() {
+fn clicks_are_ignored_while_an_action_is_playing_out() {
     let mut session = session();
     double_click(&mut session, point("hall", "key"));
     assert_eq!(next_words(&mut session), "Got it.");
     assert!(session.scripts.is_running());
+    assert!(session.input_locked());
 
     double_click(&mut session, SLOT_0);
+    assert_eq!(session.holding, None);
+    assert!(session.scripts.is_running());
+
+    settle(&mut session);
+    assert!(!session.input_locked());
+    double_click(&mut session, SLOT_0);
     assert_eq!(session.holding.as_deref(), Some("brass_key"));
-    assert!(!session.scripts.is_running());
 
     click(&mut session, point("hall", "cupboard"));
     assert_eq!(next_words(&mut session), "The key fits the cupboard!");

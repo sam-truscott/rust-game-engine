@@ -170,7 +170,8 @@ impl Game {
         }
         if self.cursor_placed {
             let at = view.screen_to_window(self.session.cursor);
-            self.cursor.draw(at, view.scale * CURSOR_SCALE);
+            self.cursor
+                .draw(at, view.scale * CURSOR_SCALE, self.session.input_locked());
             self.draw_held_item(at, view);
         }
         set_default_camera();

@@ -42,6 +42,8 @@ pub struct Session {
     pub cursor: Vec2,
     clock: f32,
     last_click: Option<(f32, Vec2)>,
+    /// Set when a script started that a click must not cut short (using an item, interacting).
+    committed: bool,
     room_changed: bool,
 }
 
@@ -84,6 +86,7 @@ impl Session {
             cursor: Vec2::ZERO,
             clock: 0.0,
             last_click: None,
+            committed: false,
             room_changed: false,
         })
     }
@@ -159,10 +162,17 @@ impl Session {
     /// there is nothing; a double click interacts with it. The single click has already started
     /// looking by the time the second arrives, so that is cancelled in favour of interacting.
     ///
-    /// Clicks that would start something are ignored while a script is running, except the second
+    /// Every click is ignored while an action (using an item, interacting) runs. Other clicks that
+    /// would start something are ignored while a script is running, except the second
     /// click of a double click. With an item held (picked by double clicking it) the next click uses
     /// it on what is under it; that is never cut short, as a half-finished script could lose items.
     pub fn click(&mut self, point: Vec2) {
+        if !self.scripts.is_running() {
+            self.committed = false;
+        }
+        if self.input_locked() {
+            return;
+        }
         let holding = self.holding.is_some();
         let double = self.is_double_click(point) && !holding;
         let busy = self.scripts.is_running();
@@ -179,6 +189,11 @@ impl Session {
         }
     }
 
+    /// Whether an action is running that ignores all clicks; the cursor is drawn faded meanwhile.
+    pub fn input_locked(&self) -> bool {
+        self.committed && self.scripts.is_running()
+    }
+
     /// Stops what the player is doing so something else can start.
     fn interrupt(&mut self) {
         self.scripts.clear();
@@ -191,6 +206,7 @@ impl Session {
                 return;
             }
             self.holding = None;
+            self.committed = true;
             let started = if held == item {
                 self.scripts.interact_item(item, INTERACT)
             } else {
@@ -212,6 +228,7 @@ impl Session {
                 return;
             }
             self.holding = None;
+            self.committed = true;
             if let Some(hotspot) = hotspot {
                 let walk_to = hotspot.walk_to.or(Some(point));
                 report(
@@ -226,6 +243,7 @@ impl Session {
                 let verb = if double { INTERACT } else { LOOK };
                 if double {
                     self.interrupt();
+                    self.committed = true;
                 }
                 let walk_to = hotspot.walk_to.or(Some(point));
                 report(

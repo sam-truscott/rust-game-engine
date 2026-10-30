@@ -183,12 +183,13 @@ impl CursorSprite {
 
     /// Draws the pointer with its hot spot at a window point, each pixel of the image `scale` window
     /// pixels wide.
-    pub fn draw(&self, window: Vec2, scale: f32) {
+    pub fn draw(&self, window: Vec2, scale: f32, translucent: bool) {
+        let tint = Color::new(1.0, 1.0, 1.0, if translucent { 0.4 } else { 1.0 });
         draw_texture_ex(
             &self.texture,
             window.x.round(),
             window.y.round(),
-            WHITE,
+            tint,
             DrawTextureParams {
                 dest_size: Some(self.size() * scale),
                 ..Default::default()
