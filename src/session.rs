@@ -7,7 +7,7 @@ use crate::assets;
 use crate::items::Items;
 use crate::room::{Hotspot, Room};
 use crate::script::ScriptRunner;
-use crate::ui::{self, Verb};
+use crate::ui;
 use crate::world::World;
 
 const START_ROOM: &str = "rooms/hall.lua";
@@ -16,16 +16,23 @@ const INTRO_SCRIPT: &str = "scripts/intro.lua";
 const ITEMS: &str = "items.lua";
 const START_POSITION: Vec2 = Vec2::new(60.0, 50.0);
 
+/// Script handlers: `hotspot.<id>.look` and `.interact`, and the same for items.
+const LOOK: &str = "look";
+const INTERACT: &str = "interact";
+const DOUBLE_CLICK_SECONDS: f32 = 0.4;
+const DOUBLE_CLICK_DISTANCE: f32 = 4.0;
+
 pub struct Session {
     pub room: Room,
     pub player: Actor,
     pub scripts: ScriptRunner,
     pub world: World,
     pub items: Items,
-    pub verb: Verb,
-    /// An item picked with "Use", waiting to be used on something.
+    /// An item picked by double clicking it, waiting to be used on something.
     pub holding: Option<String>,
     pub cursor: Vec2,
+    clock: f32,
+    last_click: Option<(f32, Vec2)>,
 }
 
 impl Session {
@@ -55,13 +62,15 @@ impl Session {
             scripts,
             world,
             items,
-            verb: Verb::WalkTo,
             holding: None,
             cursor: Vec2::ZERO,
+            clock: 0.0,
+            last_click: None,
         })
     }
 
     pub fn update(&mut self, delta_seconds: f32) {
+        self.clock += delta_seconds;
         self.player.update(delta_seconds);
         self.scripts
             .update(delta_seconds, &self.room, &mut self.player);
@@ -85,87 +94,93 @@ impl Session {
         ui::slot_at(point, carried.len()).map(|index| carried[index].clone())
     }
 
-    /// A click at a screen point (see `ui`): on the panel it picks a verb or an item, above it it acts
-    /// on the room. Choosing things (a verb, an item to use) always works, so a click is never lost
-    /// while the player is still walking or talking; clicks that would start something wait until it
-    /// is over.
+    /// Whether this click and the one before it are a double click; a double click is used up, so a
+    /// third quick click starts a new one.
+    fn is_double_click(&mut self, point: Vec2) -> bool {
+        let double = self.last_click.is_some_and(|(time, at)| {
+            self.clock - time <= DOUBLE_CLICK_SECONDS && at.distance(point) <= DOUBLE_CLICK_DISTANCE
+        });
+        self.last_click = (!double).then_some((self.clock, point));
+        double
+    }
+
+    /// A click at a screen point (see `ui`). A single click looks at what is under it, or walks if
+    /// there is nothing; a double click interacts with it. The single click has already started
+    /// looking by the time the second arrives, so that is cancelled in favour of interacting.
+    ///
+    /// Clicks that would start something are ignored while a script is running, except the second
+    /// click of a double click. With an item held (picked by double clicking it) the next click uses
+    /// it on what is under it; that is never cut short, as a half-finished script could lose items.
     pub fn click(&mut self, point: Vec2) {
+        let double = self.is_double_click(point) && self.holding.is_none();
         let busy = self.scripts.is_running();
-        if let Some(verb) = ui::verb_at(point) {
-            self.verb = verb;
-            self.holding = None;
-            return;
-        }
         if ui::in_panel(point) {
             if let Some(item) = self.item_at(point) {
-                if !busy {
-                    self.click_item(&item);
-                } else if self.verb == Verb::Use && self.holding.is_none() {
-                    self.holding = Some(item);
-                }
+                self.click_item(&item, double, busy);
             }
-            return;
-        }
-        if !busy {
-            self.click_room(ui::to_room(point));
+        } else {
+            self.click_room(ui::to_room(point), double, busy);
         }
     }
 
-    /// After something is done the verb goes back to "Walk to" and nothing is held.
-    fn finish(&mut self) -> Verb {
-        self.holding = None;
-        std::mem::replace(&mut self.verb, Verb::WalkTo)
+    /// Stops what the player is doing so something else can start.
+    fn interrupt(&mut self) {
+        self.scripts.clear();
+        self.player.stop_speaking();
     }
 
-    fn click_item(&mut self, item: &str) {
+    fn click_item(&mut self, item: &str, double: bool, busy: bool) {
         if let Some(held) = self.holding.clone() {
-            self.finish();
+            if busy {
+                return;
+            }
+            self.holding = None;
             let started = if held == item {
-                self.scripts.interact_item(item, Verb::Use.key())
+                self.scripts.interact_item(item, INTERACT)
             } else {
                 self.scripts.use_with_item(&held, item)
             };
             report(item, started);
-        } else if self.verb == Verb::Use {
+        } else if double {
+            self.interrupt();
             self.holding = Some(item.to_owned());
-        } else {
-            let verb = carried_verb(self.finish());
-            report(item, self.scripts.interact_item(item, verb.key()));
+        } else if !busy {
+            report(item, self.scripts.interact_item(item, LOOK));
         }
     }
 
-    fn click_room(&mut self, point: Vec2) {
-        let held = self.holding.clone();
-        let verb = self.finish();
-        match (self.hotspot_at(point).cloned(), held) {
-            (Some(hotspot), Some(held)) => {
+    fn click_room(&mut self, point: Vec2, double: bool, busy: bool) {
+        let hotspot = self.hotspot_at(point).cloned();
+        if let Some(held) = self.holding.clone() {
+            if busy {
+                return;
+            }
+            self.holding = None;
+            if let Some(hotspot) = hotspot {
                 let walk_to = hotspot.walk_to.or(Some(point));
                 report(
                     &hotspot.id,
                     self.scripts.use_with_hotspot(&held, &hotspot.id, walk_to),
                 );
             }
-            // "Walk to" on an object just walks towards where you clicked, so you can still walk
-            // behind things; the standing spot is for the other verbs.
-            (Some(hotspot), None) if verb != Verb::WalkTo => {
+            return;
+        }
+        match hotspot {
+            Some(hotspot) if double || !busy => {
+                let verb = if double { INTERACT } else { LOOK };
+                if double {
+                    self.interrupt();
+                }
                 let walk_to = hotspot.walk_to.or(Some(point));
                 report(
                     &hotspot.id,
-                    self.scripts.interact(&hotspot.id, verb.key(), walk_to),
+                    self.scripts.interact(&hotspot.id, verb, walk_to),
                 );
             }
-            (None, Some(_)) => {}
-            (_, None) => self.player.walk_to(&self.room, point.x, point.y),
+            Some(_) => {}
+            None if !busy => self.player.walk_to(&self.room, point.x, point.y),
+            None => {}
         }
-    }
-}
-
-/// You cannot walk to something in your pocket, so the default verb on a carried item is "Look at".
-fn carried_verb(verb: Verb) -> Verb {
-    if verb == Verb::WalkTo {
-        Verb::LookAt
-    } else {
-        verb
     }
 }
 

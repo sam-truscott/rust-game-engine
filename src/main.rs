@@ -5,7 +5,7 @@ use std::path::Path;
 
 use automation::{Automation, FIXED_DELTA, Frame, Inputs};
 use game::session::Session;
-use game::ui::{self, Verb};
+use game::ui;
 use macroquad::prelude::*;
 use render::{CharacterSprite, FRAME_HEIGHT, RoomRenderer, VIRTUAL_HEIGHT, VIRTUAL_WIDTH};
 
@@ -148,7 +148,6 @@ impl Game {
             },
         );
 
-        self.draw_verb_labels(view);
         self.draw_speech(view);
         if self.show_debug {
             self.draw_debug(view);
@@ -156,7 +155,7 @@ impl Game {
         set_default_camera();
     }
 
-    /// The panel along the bottom: a box per verb and per carried item, drawn into the virtual screen.
+    /// The panel along the bottom: a box per carried item, drawn into the virtual screen.
     /// Items are squares of their colour until there is icon art.
     fn draw_panel(&self) {
         let session = &self.session;
@@ -168,18 +167,6 @@ impl Game {
             ui::PANEL_HEIGHT,
             PANEL_COLOR,
         );
-
-        for verb in Verb::ALL {
-            let rect = ui::button_rect(verb);
-            let shade = if verb == session.verb && session.holding.is_none() {
-                Color::new(1.0, 0.9, 0.2, 0.3)
-            } else if rect.contains(session.cursor) {
-                Color::new(1.0, 1.0, 1.0, 0.25)
-            } else {
-                Color::new(1.0, 1.0, 1.0, 0.1)
-            };
-            draw_rectangle(rect.x, top(rect), rect.w, rect.h, shade);
-        }
 
         for (index, id) in session
             .world
@@ -203,33 +190,6 @@ impl Game {
                 top(slot) + 2.0,
                 slot.w - 8.0,
                 slot.h - 4.0,
-                color,
-            );
-        }
-    }
-
-    /// The verb labels, drawn at window resolution so they stay crisp.
-    fn draw_verb_labels(&self, view: &View) {
-        let session = &self.session;
-        let size = (TEXT_SIZE * view.scale).round().max(1.0) as u16;
-        let ascent = measure_text("Ag", None, size, 1.0).offset_y;
-
-        for verb in Verb::ALL {
-            let rect = ui::button_rect(verb);
-            let corner = view.screen_to_window(vec2(rect.x, rect.y + rect.h));
-            let color = if verb == session.verb && session.holding.is_none() {
-                YELLOW
-            } else if rect.contains(session.cursor) {
-                WHITE
-            } else {
-                LIGHTGRAY
-            };
-            let width = measure_text(verb.label(), None, size, 1.0).width;
-            draw_text(
-                verb.label(),
-                (corner.x + (rect.w * view.scale - width) / 2.0).round(),
-                (corner.y + (rect.h * view.scale + ascent) / 2.0).round(),
-                size as f32,
                 color,
             );
         }
@@ -291,11 +251,10 @@ impl Game {
         let session = &self.session;
         let position = session.player.position();
         println!(
-            "[state] player at ({:.1}, {:.1}) facing {:?} verb={:?} holding={:?} carrying={:?} walking={} speaking={} scripts_running={}",
+            "[state] player at ({:.1}, {:.1}) facing {:?} holding={:?} carrying={:?} walking={} speaking={} scripts_running={}",
             position.x,
             position.y,
             session.player.facing(),
-            session.verb,
             session.holding,
             session.world.items(),
             session.player.is_walking(),

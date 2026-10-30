@@ -1,7 +1,6 @@
 hotspot.counter = {
   look = function() say("A sturdy counter. Someone polishes it.") end,
-  use = function() say("The drawers are locked.") end,
-  pickup = function() say("It weighs a ton.") end,
+  interact = function() say("The drawers are locked.") end,
   use_with = {
     brass_key = function()
       say("The key fits the drawer!")
@@ -18,12 +17,12 @@ hotspot.window = {
     wait(0.3)
     say("Literally.")
   end,
-  use = function() say("It's only a frame.") end,
+  interact = function() say("It's only a frame.") end,
 }
 
 hotspot.key = {
   look = function() say("A small brass key.") end,
-  pickup = function()
+  interact = function()
     give("brass_key")
     hide("key")
     say("Got it.")
@@ -40,10 +39,10 @@ item.coin = {
 
 local cupboard_open = false
 
--- There is no "Close" verb, so using an open cupboard closes it.
+-- There is no "Close", so interacting with an open cupboard closes it.
 hotspot.cupboard = {
   look = function() say("A little wooden cupboard.") end,
-  use = function()
+  interact = function()
     if cupboard_open then
       animate("cupboard", 3, 0)
       cupboard_open = false

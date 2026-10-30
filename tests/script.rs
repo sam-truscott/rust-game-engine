@@ -172,15 +172,15 @@ fn without_a_handler_looking_and_other_verbs_get_default_replies() {
     let room = floor();
     for (verb, expected) in [
         ("look", "I see nothing special."),
-        ("use", "I can't do that."),
-        ("pickup", "I can't do that."),
+        ("interact", "I can't do that."),
+        ("talk", "I can't do that."),
     ] {
         let mut actor = Actor::new(10.0, 50.0);
         let mut runner = ScriptRunner::new().unwrap();
         runner
             .load_definitions(
                 "defs",
-                "hotspot.box = { open = function() say('opened') end }",
+                "hotspot.box = { wave = function() say('waved') end }",
             )
             .unwrap();
         runner.interact("box", verb, None).unwrap();
@@ -197,32 +197,6 @@ fn an_unknown_hotspot_gets_the_default_reply() {
     runner.interact("nothing", "look", None).unwrap();
     let (said, _) = run_until_speech(&mut runner, &room, &mut actor).expect("never spoke");
     assert_eq!(said, "I see nothing special.");
-}
-
-#[test]
-fn walking_to_a_hotspot_walks_without_speaking() {
-    let room = floor();
-    let mut actor = Actor::new(10.0, 50.0);
-    let mut runner = ScriptRunner::new().unwrap();
-    runner
-        .load_definitions(
-            "defs",
-            "hotspot.box = { walk = function() say('never') end }",
-        )
-        .unwrap();
-    runner
-        .interact("box", "walk", Some(vec2(60.0, 50.0)))
-        .unwrap();
-
-    for _ in 0..200 {
-        step(&mut runner, &room, &mut actor);
-        assert!(!actor.is_speaking());
-        if !runner.is_running() {
-            break;
-        }
-    }
-    assert!(!runner.is_running());
-    assert!((actor.position().x - 60.0).abs() < 1e-3);
 }
 
 #[test]

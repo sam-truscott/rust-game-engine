@@ -19,12 +19,13 @@ function wait(seconds) __wait(seconds) coroutine.yield() end
 -- Plays frames first..last (0-based, either direction) of an animated prop, then stays on the last.
 function animate(id, first, last, fps) __animate(id, first, last, fps) coroutine.yield() end
 
--- Scripts fill these in: hotspot.counter = { look = function() say("...") end, ... } and
--- item.brass_key = { look = ... }. A table may also hold use_with = { other_item = function() ... end }.
+-- Scripts fill these in: hotspot.counter = { look = function() say("...") end, interact = ... } and
+-- item.brass_key = { look = ... }. A single click runs look, a double click interact. A table may also
+-- hold use_with = { other_item = function() ... end }.
 hotspot = {}
 item = {}
 
--- What happens when a verb is used on an item the player carries.
+-- What happens when look or interact is used on an item the player carries.
 function __item_interaction(id, verb)
   return function()
     local handlers = item[id]
@@ -53,11 +54,10 @@ function __use_with(held, kind, target, x, y)
   end
 end
 
--- What happens when a verb is used on a hotspot: walk to its spot, then run the handler if there is one.
+-- What happens when look or interact is used on a hotspot: walk to its spot, then run the handler if there is one.
 function __interaction(id, verb, x, y)
   return function()
     if x then walkTo(x, y) end
-    if verb == "walk" then return end
     local handlers = hotspot[id]
     local handler = handlers and handlers[verb]
     if handler then
@@ -217,13 +217,13 @@ impl ScriptRunner {
         self.lua.load(source).set_name(name).exec()
     }
 
-    /// Starts using `verb` (a key from `ui::Verb::key`) on a hotspot, walking to `walk_to` first.
+    /// Starts `verb` (`look` or `interact`) on a hotspot, walking to `walk_to` first.
     pub fn interact(&mut self, id: &str, verb: &str, walk_to: Option<Vec2>) -> mlua::Result<()> {
         let (x, y) = (walk_to.map(|p| p.x), walk_to.map(|p| p.y));
         self.spawn("__interaction", (id, verb, x, y), format!("{id}.{verb}"))
     }
 
-    /// Starts using `verb` on an item the player carries.
+    /// Starts `verb` (`look` or `interact`) on an item the player carries.
     pub fn interact_item(&mut self, id: &str, verb: &str) -> mlua::Result<()> {
         self.spawn("__item_interaction", (id, verb), format!("{id}.{verb}"))
     }

@@ -103,7 +103,7 @@ fn items_without_a_handler_get_the_default_replies() {
     let room = floor();
     for (verb, expected) in [
         ("look", "I see nothing special."),
-        ("open", "I can't do that."),
+        ("interact", "I can't do that."),
     ] {
         let mut actor = Actor::new(10.0, 50.0);
         let (mut runner, _) = runner_with_world();

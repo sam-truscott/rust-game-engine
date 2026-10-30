@@ -65,6 +65,10 @@ impl Actor {
             SPEECH_BASE_SECONDS + SPEECH_SECONDS_PER_CHAR * text.chars().count() as f32;
     }
 
+    pub fn stop_speaking(&mut self) {
+        self.speech = None;
+    }
+
     pub fn is_speaking(&self) -> bool {
         self.speech.is_some()
     }

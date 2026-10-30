@@ -1,56 +1,9 @@
 use game::room::Room;
-use game::ui::{self, Verb};
+use game::ui;
 use macroquad::math::{Rect, vec2};
 
 fn centre(rect: Rect) -> macroquad::math::Vec2 {
     vec2(rect.x + rect.w / 2.0, rect.y + rect.h / 2.0)
-}
-
-#[test]
-fn every_button_is_found_at_its_centre() {
-    for verb in Verb::ALL {
-        assert_eq!(ui::verb_at(centre(ui::button_rect(verb))), Some(verb));
-    }
-}
-
-#[test]
-fn no_button_in_the_gaps_or_above_the_panel() {
-    let first = ui::button_rect(Verb::ALL[0]);
-    let second = ui::button_rect(Verb::ALL[1]);
-    let gap = vec2((first.x + first.w + second.x) / 2.0, centre(first).y);
-    assert_eq!(ui::verb_at(gap), None);
-    assert_eq!(
-        ui::verb_at(vec2(centre(first).x, ui::PANEL_HEIGHT + 10.0)),
-        None
-    );
-}
-
-#[test]
-fn the_buttons_fit_on_screen_inside_the_panel() {
-    for verb in Verb::ALL {
-        let rect = ui::button_rect(verb);
-        assert!(
-            rect.x >= 0.0 && rect.x + rect.w <= ui::SCREEN_WIDTH,
-            "{verb:?} is off screen"
-        );
-        assert!(
-            rect.y >= 0.0 && rect.y + rect.h <= ui::PANEL_HEIGHT,
-            "{verb:?} is outside the panel"
-        );
-        assert!(ui::in_panel(centre(rect)));
-    }
-}
-
-#[test]
-fn the_buttons_sit_above_the_inventory_slots() {
-    let lowest_button = Verb::ALL
-        .iter()
-        .map(|&verb| ui::button_rect(verb).y)
-        .fold(f32::MAX, f32::min);
-    let highest_slot = (0..ui::SLOT_COUNT)
-        .map(|index| ui::slot_rect(index).y + ui::slot_rect(index).h)
-        .fold(0.0, f32::max);
-    assert!(lowest_button > highest_slot, "buttons and slots overlap");
 }
 
 #[test]
@@ -68,18 +21,6 @@ fn screen_and_room_points_convert_both_ways() {
     assert_eq!(screen, vec2(120.0, 55.0 + ui::PANEL_HEIGHT));
     assert_eq!(ui::to_room(screen), room);
     assert!(!ui::in_panel(ui::to_screen(vec2(0.0, 0.0))));
-}
-
-#[test]
-fn verbs_have_distinct_labels_and_script_keys() {
-    let mut labels: Vec<_> = Verb::ALL.iter().map(|verb| verb.label()).collect();
-    let mut keys: Vec<_> = Verb::ALL.iter().map(|verb| verb.key()).collect();
-    labels.sort();
-    labels.dedup();
-    keys.sort();
-    keys.dedup();
-    assert_eq!(labels.len(), Verb::ALL.len());
-    assert_eq!(keys.len(), Verb::ALL.len());
 }
 
 #[test]
