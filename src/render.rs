@@ -138,3 +138,32 @@ impl RoomRenderer {
         }
     }
 }
+
+/// The mouse pointer, drawn at window resolution by `main.rs` in place of the system cursor. The
+/// image's top-left pixel is the point that clicks.
+pub struct CursorSprite {
+    texture: Texture2D,
+}
+
+impl CursorSprite {
+    pub fn new(path: &str) -> Self {
+        CursorSprite {
+            texture: load_texture(path),
+        }
+    }
+
+    /// Draws the pointer with its hot spot at a window point, each pixel of the image `scale` window
+    /// pixels wide.
+    pub fn draw(&self, window: Vec2, scale: f32) {
+        draw_texture_ex(
+            &self.texture,
+            window.x.round(),
+            window.y.round(),
+            WHITE,
+            DrawTextureParams {
+                dest_size: Some(vec2(self.texture.width(), self.texture.height()) * scale),
+                ..Default::default()
+            },
+        );
+    }
+}

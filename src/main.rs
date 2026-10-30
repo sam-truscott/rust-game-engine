@@ -7,12 +7,17 @@ use automation::{Automation, FIXED_DELTA, Frame, Inputs};
 use game::session::Session;
 use game::ui;
 use macroquad::prelude::*;
-use render::{CharacterSprite, FRAME_HEIGHT, RoomRenderer, VIRTUAL_HEIGHT, VIRTUAL_WIDTH};
+use render::{
+    CharacterSprite, CursorSprite, FRAME_HEIGHT, RoomRenderer, VIRTUAL_HEIGHT, VIRTUAL_WIDTH,
+};
 
 const SPEECH_WRAP_WIDTH: f32 = 160.0;
 const TEXT_SIZE: f32 = 8.0;
 const LINE_SPACING: f32 = 1.15;
 const PLAYER_SPRITE: &str = "characters/player.png";
+const CURSOR_SPRITE: &str = "cursor.png";
+/// The cursor is drawn at this fraction of the virtual screen scale, so it is smaller than the art.
+const CURSOR_SCALE: f32 = 0.5;
 const CLEAR: Color = Color::new(0.1, 0.1, 0.2, 1.0);
 const PANEL_COLOR: Color = Color::new(0.06, 0.06, 0.1, 1.0);
 const SHOT_WIDTH: u32 = 1280;
@@ -68,6 +73,9 @@ fn load_session() -> Session {
 
 struct Game {
     sprite: CharacterSprite,
+    cursor: CursorSprite,
+    /// Set by the first cursor input, so a scripted run shows no pointer until it moves one.
+    cursor_placed: bool,
     renderer: RoomRenderer,
     session: Session,
     show_debug: bool,
@@ -78,6 +86,8 @@ impl Game {
         let session = load_session();
         Game {
             sprite: CharacterSprite::new(PLAYER_SPRITE),
+            cursor: CursorSprite::new(CURSOR_SPRITE),
+            cursor_placed: false,
             renderer: RoomRenderer::new(&session.room),
             session,
             show_debug: false,
@@ -97,6 +107,7 @@ impl Game {
             self.show_debug = !self.show_debug;
         }
         if let Some(cursor) = inputs.cursor {
+            self.cursor_placed = true;
             self.session.move_cursor(cursor);
         }
         if let Some(point) = inputs.click {
@@ -151,6 +162,10 @@ impl Game {
         self.draw_speech(view);
         if self.show_debug {
             self.draw_debug(view);
+        }
+        if self.cursor_placed {
+            let at = view.screen_to_window(self.session.cursor);
+            self.cursor.draw(at, view.scale * CURSOR_SCALE);
         }
         set_default_camera();
     }
@@ -357,6 +372,7 @@ async fn main() {
     let screenshot_target = automation
         .is_some()
         .then(|| render_target(SHOT_WIDTH, SHOT_HEIGHT));
+    show_mouse(false);
     let mut game = Game::new();
 
     loop {
