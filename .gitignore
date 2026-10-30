@@ -1,5 +1,6 @@
 target/
 screenshots/
+patched/
 .classpath
 .project
 .settings/

@@ -13,6 +13,7 @@ Everything is on `master` (remote `origin`, git@github.com:sam-truscott/game.git
 ## Build, test, run
 
 ```
+bash tools/patch-miniquad.sh   # once after cloning: builds patched/miniquad (see "The miniquad patch")
 cargo build            # debug; assets are read from assets/ on disk, so edits show up after pressing R
 cargo test             # unit and integration tests, no GL needed
 cargo clippy --all-targets   # kept warning-free
@@ -26,7 +27,9 @@ target/debug/game.exe
 
 ## The miniquad patch (do not remove casually)
 
-macroquad sits on miniquad 0.4.11 (the newest release), which only stores its window state pointer on x86/x86_64. On aarch64 that call is compiled out, so **no keyboard or mouse input reaches the game and closing the window never ends the process**. `vendor/miniquad` is the published crate with four `cfg` guards changed to `target_pointer_width` (plus an `#![allow]` for two upstream warnings); `Cargo.toml` points at it with `[patch.crates-io]`. See `vendor/miniquad/PATCHES.md`. Drop both once upstream fixes it. Never run `cargo fmt` or clippy over `vendor/`.
+macroquad sits on miniquad 0.4.11 (the newest release), which only stores its window state pointer on x86/x86_64. On aarch64 that call is compiled out, so **no keyboard or mouse input reaches the game and closing the window never ends the process**.
+
+The fix is a small patch, not a copy of the crate: `patches/miniquad-0.4.11-aarch64.patch` changes four `cfg` guards to `target_pointer_width` (plus an `#![allow]` for two upstream warnings). Cargo can only override a dependency with a source folder, so `Cargo.toml` has `[patch.crates-io] miniquad = { path = "patched/miniquad" }` and **`bash tools/patch-miniquad.sh` builds that folder** (gitignored) from the published crate plus the patch. Run it once after cloning, or `cargo build` fails with "patch location ... does not contain packages matching `miniquad`"; it is a no-op when the folder is current. It checks the crate against the checksum crates.io publishes, which is pinned in the script because Cargo.lock has none for a patched crate. See `patches/README.md`. Drop all of it once upstream fixes it. Never run `cargo fmt` or clippy over `patched/`.
 
 ## Architecture
 

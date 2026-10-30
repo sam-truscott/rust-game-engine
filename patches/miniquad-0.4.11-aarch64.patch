@@ -1,0 +1,37 @@
+diff --git a/src/lib.rs b/src/lib.rs
+index e7f9d50..6e10d3e 100644
+--- a/src/lib.rs
++++ b/src/lib.rs
+@@ -1,3 +1,4 @@
++#![allow(unused_assignments, dead_code)] // local patch, see patches/README.md
+ #![doc = include_str!("../README.md")]
+ #![allow(
+     clippy::collapsible_if,
+diff --git a/src/native/windows.rs b/src/native/windows.rs
+index 3d2df69..b57795c 100644
+--- a/src/native/windows.rs
++++ b/src/native/windows.rs
+@@ -271,9 +271,9 @@ impl WindowsDisplay {
+         let win_style: DWORD = get_win_style(self.fullscreen, self.window_resizable);
+ 
+         unsafe {
+-            #[cfg(target_arch = "x86_64")]
++            #[cfg(target_pointer_width = "64")]
+             SetWindowLongPtrA(self.wnd, GWL_STYLE, win_style as _);
+-            #[cfg(target_arch = "x86")]
++            #[cfg(target_pointer_width = "32")]
+             SetWindowLong(self.wnd, GWL_STYLE, win_style as _);
+ 
+             if self.fullscreen {
+@@ -1238,9 +1238,9 @@ where
+ 
+         display.event_handler = Some(f());
+ 
+-        #[cfg(target_arch = "x86_64")]
++        #[cfg(target_pointer_width = "64")]
+         SetWindowLongPtrA(wnd, GWLP_USERDATA, &mut display as *mut _ as isize);
+-        #[cfg(target_arch = "x86")]
++        #[cfg(target_pointer_width = "32")]
+         SetWindowLong(wnd, GWLP_USERDATA, &mut display as *mut _ as isize);
+ 
+         let mut done = false;
