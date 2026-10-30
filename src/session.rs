@@ -6,6 +6,7 @@ use crate::actor::Actor;
 use crate::assets;
 use crate::items::Items;
 use crate::room::{Hotspot, Room};
+use crate::save::SaveData;
 use crate::script::ScriptRunner;
 use crate::ui;
 use crate::world::World;
@@ -91,6 +92,35 @@ impl Session {
         })
     }
 
+    /// What a save keeps of this moment.
+    pub fn capture(&self) -> SaveData {
+        let position = self.player.position();
+        SaveData {
+            room: self.room_id.clone(),
+            x: position.x,
+            y: position.y,
+            facing: self.player.facing(),
+            world: self.world.export(),
+        }
+    }
+
+    /// A session at the moment a save was made, without the intro. The player stands still and
+    /// nothing is held.
+    pub fn from_save(data: &SaveData) -> Result<Self, String> {
+        if !ROOMS.contains(&data.room.as_str()) {
+            return Err(format!("save is in unknown room {}", data.room));
+        }
+        let mut session = Self::load()?;
+        session.scripts.clear();
+        session.world.import(&data.world);
+        session.enter_room(&data.room, data.x, data.y);
+        if session.room_id != data.room {
+            return Err(format!("could not load room {}", data.room));
+        }
+        session.player.set_facing(data.facing);
+        session.room_changed = false;
+        Ok(session)
+    }
     /// Whether the room is drawn dark: it is a dark room and its lights are off.
     pub fn is_dark(&self) -> bool {
         self.room.is_dark() && !self.world.is_lit(&self.room_id)

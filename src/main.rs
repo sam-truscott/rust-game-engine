@@ -6,6 +6,8 @@ mod render;
 use std::path::Path;
 
 use automation::{Automation, FIXED_DELTA, Frame, Inputs};
+use game::menu::{self, MenuAction, SaveMenu};
+use game::save::{AUTOSAVE, SaveStore};
 use game::session::Session;
 use game::ui;
 use game::ui::{RENDER_SCALE, SCREEN_HEIGHT, SCREEN_WIDTH};
@@ -74,6 +76,20 @@ fn load_session() -> Session {
     Session::load().unwrap_or_else(|error| panic!("{error}"))
 }
 
+/// The previous game from the autosave, or a new one if there is none or it cannot be read.
+fn resume_session(store: &SaveStore) -> Session {
+    match store.list().first() {
+        Some(entry) if entry.name == AUTOSAVE => store
+            .read(AUTOSAVE)
+            .and_then(|data| Session::from_save(&data))
+            .unwrap_or_else(|error| {
+                eprintln!("[save] starting a new game: {error}");
+                load_session()
+            }),
+        _ => load_session(),
+    }
+}
+
 struct Game {
     sprite: CharacterSprite,
     cursor: CursorSprite,
@@ -82,11 +98,26 @@ struct Game {
     renderer: RoomRenderer,
     session: Session,
     show_debug: bool,
+    store: SaveStore,
+    /// Scripted runs neither load nor write saves, so they play out the same way every time.
+    persist: bool,
+    menu: Option<SaveMenu>,
+    quit: bool,
 }
 
 impl Game {
-    fn new() -> Self {
-        let session = load_session();
+    fn new(new_game: bool, persist: bool) -> Self {
+        let store = SaveStore::in_default_dir();
+        let session = match (persist, new_game) {
+            (false, _) => load_session(),
+            (true, true) => {
+                if let Err(error) = store.archive_autosave() {
+                    eprintln!("[save] {error}");
+                }
+                load_session()
+            }
+            (true, false) => resume_session(&store),
+        };
         Game {
             sprite: CharacterSprite::new(PLAYER_SPRITE),
             cursor: CursorSprite::new(CURSOR_SPRITE),
@@ -94,6 +125,10 @@ impl Game {
             renderer: RoomRenderer::new(&session.room),
             session,
             show_debug: false,
+            store,
+            persist,
+            menu: None,
+            quit: false,
         }
     }
 
@@ -103,15 +138,29 @@ impl Game {
     }
 
     fn update(&mut self, inputs: &Inputs, delta: f32) {
+        if let Some(cursor) = inputs.cursor {
+            self.cursor_placed = true;
+            self.session.move_cursor(cursor);
+        }
+        if inputs.toggle_menu {
+            self.toggle_menu();
+        }
+        if inputs.escape {
+            if self.menu.is_some() {
+                self.menu = None;
+            } else {
+                self.quit = true;
+            }
+        }
+        if self.menu.is_some() {
+            self.update_menu(inputs);
+            return;
+        }
         if inputs.restart {
             self.restart();
         }
         if inputs.toggle_debug {
             self.show_debug = !self.show_debug;
-        }
-        if let Some(cursor) = inputs.cursor {
-            self.cursor_placed = true;
-            self.session.move_cursor(cursor);
         }
         if let Some(point) = inputs.click {
             self.session.click(point);
@@ -119,6 +168,69 @@ impl Game {
         self.session.update(delta);
         if self.session.take_room_changed() {
             self.renderer = RoomRenderer::new(&self.session.room);
+        }
+    }
+
+    fn toggle_menu(&mut self) {
+        self.menu = match self.menu {
+            Some(_) => None,
+            None => Some(SaveMenu::new(self.store.list())),
+        };
+    }
+
+    fn update_menu(&mut self, inputs: &Inputs) {
+        let Some(menu) = self.menu.as_mut() else {
+            return;
+        };
+        if inputs.wheel != 0.0 {
+            menu.scroll(if inputs.wheel > 0.0 { -1 } else { 1 });
+        }
+        let Some(point) = inputs.click else {
+            return;
+        };
+        match menu.click(point) {
+            MenuAction::None => {}
+            MenuAction::Close => self.menu = None,
+            MenuAction::Save => {
+                let result = self.store.write_new(&self.session.capture());
+                menu.message = Some(match result {
+                    Ok(name) => format!("Saved as {}", name.replace("save-", "Save ")),
+                    Err(error) => {
+                        eprintln!("[save] {error}");
+                        "Could not save".to_owned()
+                    }
+                });
+                menu.set_entries(self.store.list());
+            }
+            MenuAction::Load(name) => {
+                match self
+                    .store
+                    .read(&name)
+                    .and_then(|data| Session::from_save(&data))
+                {
+                    Ok(session) => {
+                        let cursor = self.session.cursor;
+                        self.session = session;
+                        self.session.move_cursor(cursor);
+                        self.renderer = RoomRenderer::new(&self.session.room);
+                        self.menu = None;
+                    }
+                    Err(error) => {
+                        eprintln!("[save] {error}");
+                        menu.message = Some("Could not load that save".to_owned());
+                    }
+                }
+            }
+        }
+    }
+
+    /// Writes the autosave that the next start resumes from.
+    fn save_on_exit(&self) {
+        if !self.persist {
+            return;
+        }
+        if let Err(error) = self.store.write_autosave(&self.session.capture()) {
+            eprintln!("[save] {error}");
         }
     }
 
@@ -169,6 +281,9 @@ impl Game {
         self.draw_speech(view);
         if self.show_debug {
             self.draw_debug(view);
+        }
+        if self.menu.is_some() {
+            self.draw_menu(view);
         }
         if self.cursor_placed {
             let at = view.screen_to_window(self.session.cursor);
@@ -238,6 +353,112 @@ impl Game {
             view.scale * 0.5,
             BLACK,
         );
+    }
+
+    /// F2: a dimmed screen with a box holding the buttons and the list of saves, at window resolution.
+    fn draw_menu(&self, view: &View) {
+        let Some(save_menu) = &self.menu else {
+            return;
+        };
+        let to_window = |rect: Rect| {
+            let top_left = view.screen_to_window(vec2(rect.x, rect.y + rect.h));
+            Rect::new(
+                top_left.x,
+                top_left.y,
+                rect.w * view.scale,
+                rect.h * view.scale,
+            )
+        };
+        let size = (TEXT_SIZE * view.scale).round().max(1.0) as u16;
+        let ascent = measure_text("Ag", None, size, 1.0).offset_y;
+        let label = |rect: Rect, text: &str, color: Color| {
+            let inset = 3.0 * view.scale;
+            let y = rect.y + (rect.h - size as f32) / 2.0 + ascent;
+            draw_text(
+                text,
+                (rect.x + inset).round(),
+                y.round(),
+                size as f32,
+                color,
+            );
+        };
+        let button = |rect: Rect, text: &str, hot: bool| {
+            let rect = to_window(rect);
+            let shade = if hot { 0.28 } else { 0.14 };
+            draw_rectangle(
+                rect.x,
+                rect.y,
+                rect.w,
+                rect.h,
+                Color::new(1.0, 1.0, 1.0, shade),
+            );
+            label(rect, text, WHITE);
+        };
+        let cursor = self.session.cursor;
+
+        draw_rectangle(
+            0.0,
+            0.0,
+            screen_width(),
+            screen_height(),
+            Color::new(0.0, 0.0, 0.0, 0.6),
+        );
+        let panel = to_window(menu::PANEL);
+        let border = view.scale.round().max(1.0);
+        draw_rectangle(
+            panel.x - border,
+            panel.y - border,
+            panel.w + border * 2.0,
+            panel.h + border * 2.0,
+            Color::new(0.95, 0.9, 0.7, 1.0),
+        );
+        draw_rectangle(
+            panel.x,
+            panel.y,
+            panel.w,
+            panel.h,
+            Color::new(0.06, 0.05, 0.1, 1.0),
+        );
+        label(
+            Rect::new(
+                panel.x,
+                panel.y + 2.0 * view.scale,
+                panel.w,
+                10.0 * view.scale,
+            ),
+            "Save / Load",
+            Color::new(0.95, 0.9, 0.7, 1.0),
+        );
+
+        button(
+            menu::save_button(),
+            "Save game",
+            menu::save_button().contains(cursor),
+        );
+        button(
+            menu::close_button(),
+            "Close (F2)",
+            menu::close_button().contains(cursor),
+        );
+        if let Some(message) = &save_menu.message {
+            label(
+                Rect::new(
+                    panel.x,
+                    panel.y + panel.h - 10.0 * view.scale,
+                    panel.w,
+                    10.0 * view.scale,
+                ),
+                message,
+                Color::new(0.6, 0.9, 0.6, 1.0),
+            );
+        }
+        if save_menu.entries().is_empty() {
+            label(to_window(menu::row_rect(0)), "No saves yet.", GRAY);
+        }
+        for (row, entry) in save_menu.visible().iter().enumerate() {
+            let rect = menu::row_rect(row);
+            button(rect, &entry.label, rect.contains(cursor));
+        }
     }
 
     /// Drawn at window resolution so the text stays crisp however the virtual screen is scaled.
@@ -363,6 +584,9 @@ fn real_inputs(view: &View) -> Inputs {
         click: is_mouse_button_pressed(MouseButton::Left).then_some(cursor),
         restart: is_key_pressed(KeyCode::R),
         toggle_debug: is_key_pressed(KeyCode::F1),
+        toggle_menu: is_key_pressed(KeyCode::F2),
+        escape: is_key_pressed(KeyCode::Escape),
+        wheel: mouse_wheel().1,
     }
 }
 
@@ -386,18 +610,22 @@ fn save_screenshot(game: &Game, target: &RenderTarget, output: &RenderTarget, pa
 struct Args {
     script: Option<String>,
     out: String,
+    /// Start a new game instead of resuming the autosave (existing saves are kept).
+    new_game: bool,
 }
 
 fn parse_args() -> Args {
     let mut args = Args {
         script: None,
         out: "screenshots".to_owned(),
+        new_game: false,
     };
     let mut words = std::env::args().skip(1);
     while let Some(word) = words.next() {
         match word.as_str() {
             "--auto" => args.script = words.next(),
             "--out" => args.out = words.next().unwrap_or(args.out),
+            "--new" | "-n" => args.new_game = true,
             "--fullscreen" | "-f" => {}
             other => eprintln!("ignoring unknown argument {other}"),
         }
@@ -434,12 +662,10 @@ async fn main() {
         .is_some()
         .then(|| render_target(SHOT_WIDTH, SHOT_HEIGHT));
     show_mouse(false);
-    let mut game = Game::new();
+    let mut game = Game::new(args.new_game, automation.is_none());
+    prevent_quit();
 
     loop {
-        if automation.is_none() && is_key_pressed(KeyCode::Escape) {
-            break;
-        }
         let view = View::current();
         let (frame, delta) = match automation.as_mut() {
             Some(automation) => (automation.next_frame(FIXED_DELTA), FIXED_DELTA),
@@ -453,6 +679,10 @@ async fn main() {
         };
 
         game.update(&frame.inputs, delta);
+        if automation.is_none() && (game.quit || is_quit_requested()) {
+            game.save_on_exit();
+            break;
+        }
         game.draw(&target, &view, None);
 
         if frame.print_state {

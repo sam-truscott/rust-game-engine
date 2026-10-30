@@ -9,6 +9,7 @@ struct Data {
     frames: HashMap<String, usize>,
     animations: HashMap<String, Animation>,
     lit: HashSet<String>,
+    flags: HashSet<String>,
     clock: f64,
 }
 
@@ -154,5 +155,65 @@ impl World {
             animation.elapsed += delta_seconds;
         }
         data.animations.retain(|_, animation| !animation.finished());
+    }
+}
+
+/// What a saved game keeps of the `World`: everything but animations in progress and the clock.
+/// The lists are sorted so the same world always saves the same way.
+#[derive(Clone, Debug, Default, PartialEq)]
+pub struct WorldState {
+    pub inventory: Vec<String>,
+    pub hidden: Vec<String>,
+    pub frames: Vec<(String, usize)>,
+    pub lit: Vec<String>,
+    pub flags: Vec<String>,
+}
+
+impl World {
+    /// Sets a named flag scripts use to remember something (for example that the barman served a beer).
+    pub fn set_flag(&self, name: &str, on: bool) {
+        let mut data = self.0.borrow_mut();
+        if on {
+            data.flags.insert(name.to_owned());
+        } else {
+            data.flags.remove(name);
+        }
+    }
+
+    pub fn flag(&self, name: &str) -> bool {
+        self.0.borrow().flags.contains(name)
+    }
+
+    pub fn export(&self) -> WorldState {
+        let data = self.0.borrow();
+        let sorted = |set: &HashSet<String>| {
+            let mut list: Vec<String> = set.iter().cloned().collect();
+            list.sort();
+            list
+        };
+        let mut frames: Vec<(String, usize)> = data
+            .frames
+            .iter()
+            .map(|(id, frame)| (id.clone(), *frame))
+            .collect();
+        frames.sort();
+        WorldState {
+            inventory: data.inventory.clone(),
+            hidden: sorted(&data.hidden),
+            frames,
+            lit: sorted(&data.lit),
+            flags: sorted(&data.flags),
+        }
+    }
+
+    /// Replaces everything `export` covers; animations in progress stop.
+    pub fn import(&self, state: &WorldState) {
+        let mut data = self.0.borrow_mut();
+        data.inventory = state.inventory.clone();
+        data.hidden = state.hidden.iter().cloned().collect();
+        data.frames = state.frames.iter().cloned().collect();
+        data.lit = state.lit.iter().cloned().collect();
+        data.flags = state.flags.iter().cloned().collect();
+        data.animations.clear();
     }
 }

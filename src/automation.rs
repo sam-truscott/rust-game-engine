@@ -6,7 +6,7 @@
 //! move 160 110    put the cursor at a screen position (320x180, y up; the panel is the bottom 26
 //!                 and the room is above it, so a room point (x, y) is at (x, y + 26)), to hover
 //! click 256 112   left click at a screen position (also moves the cursor there)
-//! key r           restart (r) or toggle the walk-area overlay (f1)
+//! key r           restart (r), toggle the walk-area overlay (f1) or the save menu (f2)
 //! shot name       save <out>/name.png (1280x720)
 //! where           print the player's position and state
 //! quit            end the run (also implied at the end of the script)
@@ -27,6 +27,10 @@ pub struct Inputs {
     pub click: Option<Vec2>,
     pub restart: bool,
     pub toggle_debug: bool,
+    pub toggle_menu: bool,
+    pub escape: bool,
+    /// Mouse wheel movement this frame; positive is up.
+    pub wheel: f32,
 }
 
 #[derive(Default)]
@@ -44,6 +48,7 @@ enum Step {
     Click(Vec2),
     Restart,
     ToggleDebug,
+    ToggleMenu,
     Shot(String),
     Where,
     Quit,
@@ -81,6 +86,7 @@ impl Automation {
             }
             Some(Step::Restart) => frame.inputs.restart = true,
             Some(Step::ToggleDebug) => frame.inputs.toggle_debug = true,
+            Some(Step::ToggleMenu) => frame.inputs.toggle_menu = true,
             Some(Step::Shot(name)) => frame.shot = Some(self.out_dir.join(format!("{name}.png"))),
             Some(Step::Where) => frame.print_state = true,
             Some(Step::Quit) | None => frame.quit = true,
@@ -112,7 +118,8 @@ fn parse(text: &str) -> Result<VecDeque<Step>, String> {
             "key" => match words.get(1).copied() {
                 Some("r") => Step::Restart,
                 Some("f1") => Step::ToggleDebug,
-                _ => return Err(fail("key must be r or f1")),
+                Some("f2") => Step::ToggleMenu,
+                _ => return Err(fail("key must be r, f1 or f2")),
             },
             // The name becomes a file name in the output directory, so it cannot be a path.
             "shot" => match words.get(1) {
@@ -140,7 +147,7 @@ mod tests {
     #[test]
     fn parses_every_command_and_skips_comments() {
         let steps = parse(
-            "# intro\nwait 1.5\n\nmove 5 6\nclick 10 20  # to the left\nkey r\nkey f1\nshot a\nwhere\nquit\n",
+            "# intro\nwait 1.5\n\nmove 5 6\nclick 10 20  # to the left\nkey r\nkey f1\nkey f2\nshot a\nwhere\nquit\n",
         )
         .unwrap();
         assert_eq!(
@@ -151,6 +158,7 @@ mod tests {
                 Step::Click(vec2(10.0, 20.0)),
                 Step::Restart,
                 Step::ToggleDebug,
+                Step::ToggleMenu,
                 Step::Shot("a".to_owned()),
                 Step::Where,
                 Step::Quit,

@@ -51,12 +51,10 @@ item.coin = {
   look = function() say("A silver coin. Heads, probably.") end,
 }
 
-local served = false
-
 hotspot.barman = {
   look = function() say("The barman polishes a glass. Probably the same one as an hour ago.") end,
   interact = function()
-    if served then
+    if flag("served") then
       say("One's plenty for now.")
     else
       say("A beer, please.")
@@ -73,7 +71,7 @@ hotspot.barman = {
       animate("barman", 10, 11, 3)   -- slides the pint over
       give("beer")
       resume("barman")
-      served = true
+      setFlag("served")
       say("Cheers.")
     end,
   },

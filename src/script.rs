@@ -239,6 +239,19 @@ impl ScriptRunner {
             w.resume(&id);
             Ok(())
         });
+        bind!(
+            lua,
+            globals,
+            world,
+            "setFlag",
+            |w, name: String, on: Option<bool>| {
+                w.set_flag(&name, on.unwrap_or(true));
+                Ok(())
+            }
+        );
+        bind!(lua, globals, world, "flag", |w, name: String| Ok(
+            w.flag(&name)
+        ));
         lua.load(PRELUDE).set_name("prelude").exec()?;
 
         Ok(ScriptRunner {
