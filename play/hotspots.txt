@@ -1,10 +1,10 @@
 # Single click to look at things, double click to interact with them.
 # Run: target/debug/game.exe --auto play/hotspots.txt --out screenshots
-# Positions are screen points (320x180, y up): the room is above the 40-high panel, so a room point
-# (x, y) is clicked at (x, y + 40). Two `click`s in a row are a double click (the time step is fixed).
+# Positions are screen points (320x180, y up): the room is above the 26-high panel, so a room point
+# (x, y) is clicked at (x, y + 26). Two `click`s in a row are a double click (the time step is fixed).
 wait 3
-move 160 110                # over the counter
-click 160 110               # single click: look at the counter
+move 160 96                # over the counter
+click 160 96               # single click: look at the counter
 wait 0.6
 shot h1_walking_to_counter
 wait 2.5
@@ -13,16 +13,16 @@ where                       # (160, 30), speaking, handler still running
 wait 4
 where                       # nothing running
 
-click 256 115               # look at the window
+click 256 101               # look at the window
 wait 0.3
-click 256 115               # second click: cuts the look short and interacts instead
+click 256 101               # second click: cuts the look short and interacts instead
 wait 2.5
 shot h3_window_interact     # at the window's spot (256, 40), "It's only a frame."
 wait 3
 where                       # (256, 40), nothing running
 
-click 160 110
-click 160 110               # the counter again
+click 160 96
+click 160 96               # the counter again
 wait 2.5
 shot h4_counter_interact    # "The drawers are locked."
 wait 3

@@ -9,7 +9,7 @@ pub const SCREEN_WIDTH: f32 = 320.0;
 pub const SCREEN_HEIGHT: f32 = 180.0;
 
 /// The panel fills the screen below this y; clicks there never walk the player.
-pub const PANEL_HEIGHT: f32 = 40.0;
+pub const PANEL_HEIGHT: f32 = 26.0;
 pub const SLOT_COUNT: usize = 11;
 
 const SLOT_WIDTH: f32 = 24.0;

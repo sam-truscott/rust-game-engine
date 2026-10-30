@@ -1,13 +1,13 @@
 # Pick up the key, use it on the counter's drawer, look at the coin.
 # Run: target/debug/game.exe --auto play/inventory.txt --out screenshots
-# Positions are screen points (320x180, y up): the room is above the 40-high panel, so a room point
-# (x, y) is clicked at (x, y + 40). Two `click`s in a row are a double click.
+# Positions are screen points (320x180, y up): the room is above the 26-high panel, so a room point
+# (x, y) is clicked at (x, y + 26). Two `click`s in a row are a double click.
 # Inventory slots (centres): 16,13  44,13  72,13 ...
 wait 3
 shot i1_start               # key on the floor at the left, inventory slots empty
-move 46 79                  # over the key
-click 46 79
-click 46 79                 # double click: interact, which picks it up
+move 46 65                  # over the key
+click 46 65
+click 46 65                 # double click: interact, which picks it up
 wait 5
 shot i2_picked_up           # key gone from the floor, in the first slot
 where                       # at (46, 30), carrying ["brass_key"]
@@ -15,8 +15,8 @@ where                       # at (46, 30), carrying ["brass_key"]
 click 16 13
 click 16 13                 # double click the key in the inventory: hold it
 shot i3_holding_key         # the key's slot highlighted
-move 160 110
-click 160 110               # the counter: use the key on it
+move 160 96
+click 160 96               # the counter: use the key on it
 wait 2.5
 shot i4_drawer              # "The key fits the drawer!"
 wait 5
