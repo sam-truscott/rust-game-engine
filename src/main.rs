@@ -12,7 +12,7 @@ use game::session::Session;
 use game::ui;
 use game::ui::{RENDER_SCALE, SCREEN_HEIGHT, SCREEN_WIDTH};
 use macroquad::prelude::*;
-use render::{CharacterSprite, CursorSprite, FRAME_HEIGHT, RoomRenderer};
+use render::{CharacterSprite, CursorSprite, FRAME_HEIGHT, RoomRenderer, Textures};
 
 const SPEECH_WRAP_WIDTH: f32 = 160.0;
 const TEXT_SIZE: f32 = 8.0;
@@ -96,6 +96,7 @@ struct Game {
     /// Set by the first cursor input, so a scripted run shows no pointer until it moves one.
     cursor_placed: bool,
     renderer: RoomRenderer,
+    textures: Textures,
     session: Session,
     show_debug: bool,
     store: SaveStore,
@@ -124,11 +125,13 @@ impl Game {
                 .map_or(1, |since| since.subsec_nanos() ^ since.as_secs() as u32);
             session.world.seed_street(seed);
         }
+        let mut textures = Textures::preload();
         Game {
             sprite: CharacterSprite::new(PLAYER_SPRITE),
             cursor: CursorSprite::new(CURSOR_SPRITE),
             cursor_placed: false,
-            renderer: RoomRenderer::new(&session.room),
+            renderer: RoomRenderer::new(&session.room, &mut textures),
+            textures,
             session,
             show_debug: false,
             store,
@@ -140,7 +143,9 @@ impl Game {
 
     fn restart(&mut self) {
         self.session = load_session();
-        self.renderer = RoomRenderer::new(&self.session.room);
+        // Loaded again so that edited art shows up in a debug build.
+        self.textures = Textures::preload();
+        self.renderer = RoomRenderer::new(&self.session.room, &mut self.textures);
     }
 
     fn update(&mut self, inputs: &Inputs, delta: f32) {
@@ -173,7 +178,7 @@ impl Game {
         }
         self.session.update(delta);
         if self.session.take_room_changed() {
-            self.renderer = RoomRenderer::new(&self.session.room);
+            self.renderer = RoomRenderer::new(&self.session.room, &mut self.textures);
         }
     }
 
@@ -218,7 +223,7 @@ impl Game {
                         let cursor = self.session.cursor;
                         self.session = session;
                         self.session.move_cursor(cursor);
-                        self.renderer = RoomRenderer::new(&self.session.room);
+                        self.renderer = RoomRenderer::new(&self.session.room, &mut self.textures);
                         self.menu = None;
                     }
                     Err(error) => {

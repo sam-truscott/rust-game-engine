@@ -8,6 +8,10 @@ macroquad = { version = "0.4.16", default-features = false }
 mlua = { version = "0.12.2", features = ["lua54", "vendored"] }
 rust-embed = "8.13.0"
 
+# Unoptimised image decoding made changing room take up to a second in debug builds.
+[profile.dev.package."*"]
+opt-level = 3
+
 # miniquad 0.4.11 only stores its window state pointer on x86/x86_64, so on aarch64-pc-windows-msvc
 # no input or close events reach the game. patched/miniquad is the published crate plus a small patch;
 # build it with tools/patch-miniquad.sh (see patches/README.md).

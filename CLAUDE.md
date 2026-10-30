@@ -17,7 +17,7 @@ Everything is on `master` (remote `origin`, git@github.com:sam-truscott/game.git
 
 ```
 bash tools/patch-miniquad.sh   # once after cloning: builds patched/miniquad (see "The miniquad patch")
-cargo build            # debug; assets are read from assets/ on disk, so edits show up after pressing R
+cargo build            # debug; assets are read from assets/ on disk, so edits show up after pressing R (dependencies are built optimised, see below)
 cargo test             # unit and integration tests, no GL needed
 cargo clippy --all-targets   # kept warning-free
 cargo fmt              # default rustfmt settings
@@ -27,7 +27,7 @@ target/debug/game.exe
 ```
 
 - Controls: there are no verbs. A **single click** on something (a hotspot, or a carried item in the panel) looks at it; a **double click** (second click within 0.4 s and 4 units of the first) interacts with it, cutting short the look the first click started. A click where nothing is walks there; a double click on bare floor jumps there at once (`Actor::teleport`), and a double click on a hotspot marked `door = true` in the room file fast-forwards the walk and room change (`Session::fast_forward_to_room_change`). A double click on a carried item picks it up to combine: its slot is highlighted and the next click uses it on a hotspot or another item (clicking it again interacts with it alone; clicking empty room puts it back). While a script runs, clicks that would start something are ignored, except the second click of a double click, and a click skips the speech line being said (not within a double-click time of the action starting); a held item's use is never cut short. The panel along the bottom holds only the inventory slots for now (26 high). There is no hover text. The system cursor is hidden; `assets/cursor.png` (top-left pixel is the click point) is drawn by `render::CursorSprite` at the session's cursor position, last so it is on top. While an item is held (`session.holding`) `draw_held_item` in `main.rs` draws a half-size icon of it at the cursor's bottom right. **R** restarts, **F1** toggles an overlay of the authored (green) and margin-adjusted (yellow) walk areas.
-- Debug builds read `assets/` from the path baked in at compile time, release builds embed it, so a release exe is self-contained.
+- Debug builds read `assets/` from the path baked in at compile time, release builds embed it, so a release exe is self-contained. `Cargo.toml` builds dependencies with `opt-level = 3` even in debug: unoptimised PNG decoding made a room change take up to a second.
 
 ## The miniquad patch (do not remove casually)
 
@@ -38,7 +38,7 @@ The fix is a small patch, not a copy of the crate: `patches/miniquad-0.4.11-aarc
 ## Architecture
 
 - `src/lib.rs` (crate `game`, no rendering, fully testable): `session` (the game logic: what a click and a double click do, the held item), `room` (walk outline, obstacles, props, hotspots, Lua room loading, polygon offset), `pathfinder` (visibility graph + Dijkstra), `actor` (path following, facing, distance walked, speech), `script` (Lua coroutines), `world` (inventory and hidden things, shared with scripts), `items` (item names and colours), `ui` (verbs, the bottom panel's layout and hit testing, screen/room point conversion), `direction`, `assets` (rust-embed).
-- `src/main.rs`: macroquad app, a thin shell around `Session` (input, drawing, window). `src/render.rs`: `CharacterSprite` and `RoomRenderer` (back-to-front depth sort, skips hidden props). `src/automation.rs`: scripted play (below).
+- `src/main.rs`: macroquad app, a thin shell around `Session` (input, drawing, window). `src/render.rs`: `CharacterSprite`, `RoomRenderer` (back-to-front depth sort, skips hidden props) and `Textures`, every room's images decoded once at start (and again on R, so edited art shows up) so a room change does not stall; `RoomRenderer::new` takes its images from there. `src/automation.rs`: scripted play (below).
 - `Room` stores the precomputed corner-to-corner visibility; `pathfinder::find` only borrows the room. Only start and goal are tested per click. Targets that are not walkable move to the nearest boundary point.
 - Scripts: `walkTo(x, y)`, `say(text)`, `wait(seconds)` are small Lua wrappers (in `script.rs`) that call a Rust function, which only records a `Command`, and then `coroutine.yield()`. `ScriptRunner::update` applies the command to the actor and resumes the script once the action has finished. A suspended coroutine is simply dropped, so there are no threads to clean up. To add a blocking call: a Rust function that records a `Command`, a wrapper in `PRELUDE`, and a match arm in `update`. Calls that do not wait (`give`, `take`, `has`, `hide`) are plain Rust functions acting on the shared `World`.
 - Rendering: the room draws into a 320x180 render target, shifted up by `ui::PANEL_HEIGHT` (a camera offset) so its bottom edge sits on the panel and the top 26 pixels of wall are cropped; the panel is then drawn over the bottom of the same target. The target is scaled with nearest filtering and letterboxed. Speech text, the F1 overlay and the mouse cursor are drawn afterwards at window resolution so they stay crisp (room points go through `View::room_to_window`, panel points through `View::screen_to_window`). Screenshots render the same frame at 1280x720 into an offscreen target.

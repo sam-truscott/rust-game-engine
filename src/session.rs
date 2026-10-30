@@ -24,7 +24,7 @@ const INTERACT: &str = "interact";
 const DOUBLE_CLICK_SECONDS: f32 = 0.4;
 const DOUBLE_CLICK_DISTANCE: f32 = 4.0;
 
-fn load_room(id: &str) -> Result<Room, String> {
+pub fn load_room(id: &str) -> Result<Room, String> {
     let path = format!("rooms/{id}.lua");
     let source = assets::text(&path).ok_or_else(|| format!("missing {path}"))?;
     Room::from_lua(&source, &path).map_err(|error| format!("{path}: {error}"))

@@ -1,7 +1,10 @@
+use std::collections::HashMap;
+
 use game::actor::Actor;
 use game::assets;
 use game::direction::Direction;
 use game::room::{Prop, Room, StreetView};
+use game::session::{ROOMS, load_room};
 use game::street::Car;
 use game::ui::{RENDER_SCALE, SCREEN_HEIGHT, SCREEN_WIDTH};
 use game::world::World;
@@ -80,6 +83,36 @@ impl CharacterSprite {
     }
 }
 
+/// Every room's images, decoded once so that changing room does not stall on loading them.
+#[derive(Default)]
+pub struct Textures(HashMap<String, Texture2D>);
+
+impl Textures {
+    /// Loads the background and props of every room in `ROOMS`.
+    pub fn preload() -> Self {
+        let mut textures = Textures::default();
+        for id in ROOMS {
+            match load_room(id) {
+                Ok(room) => {
+                    let props = room.props().iter().map(|prop| prop.image.as_str());
+                    for path in room.background().into_iter().chain(props) {
+                        textures.get(path);
+                    }
+                }
+                Err(error) => eprintln!("[room] {error}"),
+            }
+        }
+        textures
+    }
+
+    fn get(&mut self, path: &str) -> Texture2D {
+        self.0
+            .entry(path.to_owned())
+            .or_insert_with(|| load_texture(path))
+            .clone()
+    }
+}
+
 enum Item<'a> {
     Prop(&'a Prop, &'a Texture2D),
     Actor,
@@ -93,14 +126,14 @@ pub struct RoomRenderer {
 }
 
 impl RoomRenderer {
-    pub fn new(room: &Room) -> Self {
+    pub fn new(room: &Room, textures: &mut Textures) -> Self {
         RoomRenderer {
-            background: room.background().map(load_texture),
+            background: room.background().map(|path| textures.get(path)),
             street: room.street().copied(),
             props: room
                 .props()
                 .iter()
-                .map(|prop| (prop.clone(), load_texture(&prop.image)))
+                .map(|prop| (prop.clone(), textures.get(&prop.image)))
                 .collect(),
         }
     }
