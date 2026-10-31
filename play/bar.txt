@@ -7,7 +7,7 @@ shot b1_pub                 # barman polishing a glass, a man at the bar, two at
 click 136 149
 click 136 149               # into the closet
 wait 6
-click 160 102
+click 160 94
 click 160 102               # light on
 wait 4
 click 151 92
