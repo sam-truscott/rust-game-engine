@@ -1,11 +1,13 @@
 #![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
 
 mod automation;
+mod corruption;
 mod render;
 
 use std::path::Path;
 
 use automation::{Automation, FIXED_DELTA, Frame, Inputs};
+use corruption::Corruption;
 use game::menu::{self, MenuAction, SaveMenu};
 use game::save::{AUTOSAVE, SaveStore};
 use game::session::Session;
@@ -95,6 +97,7 @@ struct Game {
     cursor: CursorSprite,
     /// Set by the first cursor input, so a scripted run shows no pointer until it moves one.
     cursor_placed: bool,
+    corruption: Corruption,
     renderer: RoomRenderer,
     textures: Textures,
     session: Session,
@@ -130,6 +133,7 @@ impl Game {
             sprite: CharacterSprite::new(PLAYER_SPRITE),
             cursor: CursorSprite::new(CURSOR_SPRITE),
             cursor_placed: false,
+            corruption: Corruption::new(),
             renderer: RoomRenderer::new(&session.room, &mut textures),
             textures,
             session,
@@ -277,6 +281,10 @@ impl Game {
             None => set_default_camera(),
         }
         clear_background(CLEAR);
+        let corruption = self.session.world.corruption();
+        if let Some(progress) = corruption {
+            self.corruption.begin(progress);
+        }
         draw_texture_ex(
             &target.texture,
             view.offset.x,
@@ -288,6 +296,9 @@ impl Game {
                 ..Default::default()
             },
         );
+        if corruption.is_some() {
+            self.corruption.end();
+        }
 
         self.draw_speech(view);
         if self.show_debug {

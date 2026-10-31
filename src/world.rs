@@ -14,6 +14,7 @@ struct Data {
     flags: HashSet<String>,
     clock: f64,
     street: Street,
+    corruption: f32,
 }
 
 /// Frames `first` to `last` (either direction) shown one after another, each for 1/fps seconds.
@@ -164,6 +165,7 @@ impl World {
     pub fn advance(&self, delta_seconds: f32) {
         let mut data = self.0.borrow_mut();
         data.clock += delta_seconds as f64;
+        data.corruption = (data.corruption - delta_seconds).max(0.0);
         data.street.advance(delta_seconds);
         for animation in data.animations.values_mut() {
             animation.elapsed += delta_seconds;
@@ -229,5 +231,37 @@ impl World {
         data.lit = state.lit.iter().cloned().collect();
         data.flags = state.flags.iter().cloned().collect();
         data.animations.clear();
+    }
+}
+
+/// How long the corruption event lasts, in seconds.
+pub const CORRUPTION_SECONDS: f32 = 1.0;
+
+impl World {
+    /// Starts the corruption event: the whole screen pixelates for a second. Not saved.
+    pub fn trigger_corruption(&self) {
+        self.0.borrow_mut().corruption = CORRUPTION_SECONDS;
+    }
+
+    /// How far the corruption event has got, 0 to 1, or None when it is not running.
+    pub fn corruption(&self) -> Option<f32> {
+        let remaining = self.0.borrow().corruption;
+        (remaining > 0.0).then(|| 1.0 - remaining / CORRUPTION_SECONDS)
+    }
+}
+
+#[cfg(test)]
+mod corruption_tests {
+    use super::*;
+
+    #[test]
+    fn corruption_runs_for_a_second_then_ends() {
+        let world = World::default();
+        assert_eq!(world.corruption(), None);
+        world.trigger_corruption();
+        world.advance(0.5);
+        assert!((world.corruption().unwrap() - 0.5).abs() < 1e-4);
+        world.advance(0.6);
+        assert_eq!(world.corruption(), None);
     }
 }

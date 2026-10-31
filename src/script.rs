@@ -259,6 +259,10 @@ impl ScriptRunner {
                 Ok(())
             }
         );
+        bind!(lua, globals, world, "corruptionEvent", |w| {
+            w.trigger_corruption();
+            Ok(())
+        });
         bind!(lua, globals, world, "flag", |w, name: String| Ok(
             w.flag(&name)
         ));

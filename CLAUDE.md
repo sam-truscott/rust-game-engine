@@ -118,3 +118,7 @@ No screen capture: run a temporary play script (shots every 1/30 s via `shot`, s
 ## Self-use items
 
 An item with `self_use = true` in `assets/items.lua` is used on its own by a double click (its `item.<id>.interact` handler runs at once) instead of being picked up to combine. The beer drinks itself (`take("beer")`, `give("empty_glass")`); the empty glass is an ordinary item that goes back to the barman (`use_with.empty_glass` on `hotspot.barman`), who thanks the player sarcastically. `play/bar.txt` ends with this.
+
+## Corruption event
+
+`corruptionEvent()` in a script (non-blocking, plain Rust function on `World`) starts a one second whole-screen glitch: `World::corruption()` gives its progress (0-1, `None` when idle; not saved) and `corruption.rs` (binary only) draws the finished 1280x720 frame through a shader that pixelates it down to 20 blocks across, tears rows, splits RGB and inverts a few blocks, strongest mid-way. Speech text and the cursor are drawn afterwards so they stay clean. Drinking the beer (`item.beer.interact` in `hall.lua`) fires it; `play/corruption.txt` takes shots around it.

@@ -1,0 +1,41 @@
+# Meet the people in the pub and buy a beer. Take the key from the closet, open the cupboard for the coin,
+# then use the coin on the barman.
+# Run: target/debug/game.exe --auto play/bar.txt --out screenshots
+# Positions are screen points (320x180, y up): add 26 to a room y. Two `click`s in a row are a double click.
+wait 3
+shot b1_pub                 # barman polishing a glass, a man at the bar, two at the table, all moving
+click 136 149
+click 136 149               # into the closet
+wait 6
+click 160 94
+click 160 94                # light on
+wait 4
+click 151 92
+click 151 92                # take the key
+wait 6
+click 180 89
+click 180 89                # back to the bar
+wait 6
+click 16 13
+click 16 13                 # hold the key
+click 45 126
+wait 9                      # the cupboard opens: a coin in slot 1
+click 16 13
+click 16 13                 # hold the coin
+click 251 126               # the barman
+wait 6.5
+shot b2_serving             # the barman takes the coin and pours
+wait 4
+shot b3_served              # back to polishing, a beer in the inventory
+where                       # carrying ["beer"]
+click 16 13
+click 16 13                 # drink the beer: the screen corrupts for a second
+wait 1.6
+shot c1_before
+wait 0.8
+shot c2_corrupt
+wait 0.4
+shot c3_corrupt
+wait 3
+shot c4_after
+quit
