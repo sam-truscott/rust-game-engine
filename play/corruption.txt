@@ -30,12 +30,10 @@ shot b3_served              # back to polishing, a beer in the inventory
 where                       # carrying ["beer"]
 click 16 13
 click 16 13                 # drink the beer: the screen corrupts for a second
-wait 1.6
-shot c1_before
-wait 0.8
-shot c2_corrupt
-wait 0.4
-shot c3_corrupt
-wait 3
-shot c4_after
+wait 4.2
+shot c1_before              # the glitch has not started yet
+wait 1
+shot c2_corrupt             # mid-glitch
+wait 2.5
+shot c3_after               # back to normal, "What the hell was that?" said
 quit

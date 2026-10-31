@@ -102,10 +102,11 @@ item.beer = {
   look = function() say("A cold pint. Better than the key, anyway.") end,
   interact = function()
     say("Down the hatch.")
-    corruptionEvent()
     take("beer")
     give("empty_glass")
     say("Ahh. That was almost worth the coin.")
+    corruptionEvent()
+    say("What the hell was that?")
   end,
 }
 

@@ -30,7 +30,7 @@ shot b3_served              # back to polishing, a beer in the inventory
 where                       # carrying ["beer"]
 click 16 13
 click 16 13                 # drink the beer: an empty glass replaces it
-wait 5
+wait 7.5
 click 16 13
 click 16 13
 click 251 126               # give the glass back
