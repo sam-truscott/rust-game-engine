@@ -235,10 +235,10 @@ impl World {
 }
 
 /// How long the corruption event lasts, in seconds.
-pub const CORRUPTION_SECONDS: f32 = 1.0;
+pub const CORRUPTION_SECONDS: f32 = 0.5;
 
 impl World {
-    /// Starts the corruption event: the whole screen pixelates for a second. Not saved.
+    /// Starts the corruption event: the whole screen pixelates for half a second. Not saved.
     pub fn trigger_corruption(&self) {
         self.0.borrow_mut().corruption = CORRUPTION_SECONDS;
     }
@@ -255,13 +255,13 @@ mod corruption_tests {
     use super::*;
 
     #[test]
-    fn corruption_runs_for_a_second_then_ends() {
+    fn corruption_runs_for_half_a_second_then_ends() {
         let world = World::default();
         assert_eq!(world.corruption(), None);
         world.trigger_corruption();
-        world.advance(0.5);
+        world.advance(0.25);
         assert!((world.corruption().unwrap() - 0.5).abs() < 1e-4);
-        world.advance(0.6);
+        world.advance(0.3);
         assert_eq!(world.corruption(), None);
     }
 }

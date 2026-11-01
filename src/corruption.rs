@@ -1,4 +1,4 @@
-//! The corruption event: for a second the finished frame is drawn through a shader that pixelates it
+//! The corruption event: for half a second the finished frame is drawn through a shader that pixelates it
 //! into coarse blocks, tears rows sideways and splits the colours, then settles back to normal.
 
 use macroquad::prelude::*;
@@ -76,10 +76,10 @@ impl Corruption {
 
     /// Makes everything drawn until `end` go through the effect; `progress` is 0 to 1 over the event.
     pub fn begin(&self, progress: f32) {
-        // Snaps in, holds, then falls away; the pattern changes 12 times a second.
+        // Snaps in, holds, then falls away; the pattern changes 12 times a second (6 steps in half a second).
         let strength = (progress * std::f32::consts::PI).sin().powf(0.5);
         self.material.set_uniform("Strength", strength);
-        self.material.set_uniform("Step", (progress * 12.0).floor());
+        self.material.set_uniform("Step", (progress * 6.0).floor());
         gl_use_material(&self.material);
     }
 
