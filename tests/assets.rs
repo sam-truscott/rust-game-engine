@@ -85,7 +85,7 @@ fn room_named(id: &str) -> Room {
 
 #[test]
 fn every_room_has_its_script_images_and_reachable_hotspots() {
-    for id in game::session::ROOMS {
+    for id in &game::manifest::Manifest::load().unwrap().rooms {
         let room = room_named(id);
         let path = format!("scripts/{id}.lua");
         let definitions = assets::text(&path).unwrap_or_else(|| panic!("{path} is missing"));
@@ -125,7 +125,7 @@ fn every_room_has_its_script_images_and_reachable_hotspots() {
 #[test]
 fn prop_ids_are_unique_across_rooms_because_the_world_keys_on_them() {
     let mut seen = std::collections::HashSet::new();
-    for id in game::session::ROOMS {
+    for id in &game::manifest::Manifest::load().unwrap().rooms {
         for prop in room_named(id).props() {
             if let Some(prop_id) = &prop.id {
                 assert!(seen.insert(prop_id.clone()), "prop id {prop_id} is reused");
@@ -167,9 +167,14 @@ fn rooms_and_items_are_loaded_without_file_or_os_access() {
 fn the_hall_window_shows_the_street_and_the_closet_has_none() {
     let street = hall()
         .street()
-        .copied()
+        .cloned()
         .expect("the hall has a street view");
     assert!(street.glass.w > 0.0 && street.mirror.is_some());
     assert!(street.floor < street.glass.y);
     assert!(closet().street().is_none());
+}
+
+#[test]
+fn the_bundled_game_passes_the_check() {
+    assert_eq!(game::check::check_game(), Vec::<String>::new());
 }

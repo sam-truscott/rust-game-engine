@@ -4,8 +4,8 @@ use game::actor::Actor;
 use game::assets;
 use game::direction::Direction;
 use game::room::{Prop, Room, StreetView};
-use game::session::{ROOMS, load_room};
-use game::street::Car;
+use game::session::load_room;
+use game::street::{Car, CarLook};
 use game::ui::{RENDER_SCALE, SCREEN_HEIGHT, SCREEN_WIDTH};
 use game::world::World;
 use macroquad::prelude::*;
@@ -18,9 +18,6 @@ const WALK_FRAMES: usize = 6;
 const SHEET_COLUMNS: f32 = (WALK_FRAMES + 1) as f32;
 const SHEET_ROWS: f32 = 3.0;
 const DISTANCE_PER_FRAME: f32 = 7.5;
-/// What covers an unlit room; almost opaque.
-const DARKNESS: Color = Color::new(0.0, 0.0, 0.0, 0.99);
-
 fn load_texture(path: &str) -> Texture2D {
     let bytes = assets::bytes(path).unwrap_or_else(|| panic!("missing asset {path}"));
     let texture = Texture2D::from_file_with_format(&bytes, None);
@@ -88,10 +85,10 @@ impl CharacterSprite {
 pub struct Textures(HashMap<String, Texture2D>);
 
 impl Textures {
-    /// Loads the background and props of every room in `ROOMS`.
-    pub fn preload() -> Self {
+    /// Loads the background and props of the given rooms.
+    pub fn preload(rooms: &[String]) -> Self {
         let mut textures = Textures::default();
-        for id in ROOMS {
+        for id in rooms {
             match load_room(id) {
                 Ok(room) => {
                     let props = room.props().iter().map(|prop| prop.image.as_str());
@@ -129,7 +126,7 @@ impl RoomRenderer {
     pub fn new(room: &Room, textures: &mut Textures) -> Self {
         RoomRenderer {
             background: room.background().map(|path| textures.get(path)),
-            street: room.street().copied(),
+            street: room.street().cloned(),
             props: room
                 .props()
                 .iter()
@@ -141,7 +138,14 @@ impl RoomRenderer {
     /// Items with a larger depth are further back and drawn first; ties draw the actor last.
     /// Props a script has hidden are skipped. In a dark room everything is covered by darkness except
     /// the glowing props, which are drawn over it.
-    pub fn draw(&self, actor: &Actor, sprite: &CharacterSprite, world: &World, dark: bool) {
+    pub fn draw(
+        &self,
+        actor: &Actor,
+        sprite: &CharacterSprite,
+        world: &World,
+        dark: bool,
+        darkness: f32,
+    ) {
         if let Some(background) = &self.background {
             draw_texture_ex(
                 background,
@@ -178,12 +182,18 @@ impl RoomRenderer {
             }
         }
 
-        if let Some((_, car)) = &car {
-            draw_wash(car);
+        if let Some((view, car)) = &car {
+            draw_wash(car, &view.look);
         }
 
         if dark {
-            draw_rectangle(0.0, 0.0, SCREEN_WIDTH, SCREEN_HEIGHT, DARKNESS);
+            draw_rectangle(
+                0.0,
+                0.0,
+                SCREEN_WIDTH,
+                SCREEN_HEIGHT,
+                Color::new(0.0, 0.0, 0.0, darkness),
+            );
             for (prop, texture) in self
                 .props
                 .iter()
@@ -270,15 +280,6 @@ impl CursorSprite {
     }
 }
 
-/// Art pixel of the car, in game units (the room art is drawn in 5x5 blocks of the 1280x720 picture).
-const BLOCK: f32 = 1.25;
-const CAR_PATTERN: [&str; 4] = ["..BBBBB...", ".BCCBCCB..", "TBBBBBBBBH", ".WW....WW."];
-const CAR_BODIES: [Color; 3] = [
-    Color::new(0.10, 0.13, 0.20, 1.0),
-    Color::new(0.30, 0.09, 0.10, 1.0),
-    Color::new(0.12, 0.20, 0.17, 1.0),
-];
-const HEADLIGHT: Color = Color::new(1.0, 0.86, 0.55, 1.0);
 const LIGHT_BANDS: usize = 14;
 
 /// Draws a filled rectangle given in room coordinates (y up), cut to `clip` when there is one.
@@ -305,8 +306,8 @@ fn glow(car: &Car) -> f32 {
 }
 
 /// The x of a car's front when it is `progress` of the way across `glass`.
-fn car_x(car: &Car, glass: Rect) -> f32 {
-    let width = CAR_PATTERN[0].len() as f32 * BLOCK;
+fn car_x(car: &Car, glass: Rect, look: &CarLook) -> f32 {
+    let width = look.pattern[0].chars().count() as f32 * look.block;
     let along = if car.rightwards {
         car.progress
     } else {
@@ -318,17 +319,19 @@ fn car_x(car: &Car, glass: Rect) -> f32 {
 /// The car on the street, seen through the lower pane of the window.
 fn draw_car(car: &Car, view: &StreetView, background: Option<&Texture2D>) {
     let glass = view.glass;
-    let left = car_x(car, glass);
-    let body = CAR_BODIES[car.style % CAR_BODIES.len()];
-    let width = CAR_PATTERN[0].len();
-    for (row, line) in CAR_PATTERN.iter().enumerate() {
+    let look = &view.look;
+    let block = look.block;
+    let left = car_x(car, glass, look);
+    let body = look.bodies[car.style % look.bodies.len()];
+    let width = look.pattern[0].chars().count();
+    for (row, line) in look.pattern.iter().enumerate() {
         for (column, cell) in line.chars().enumerate() {
             let color = match cell {
                 'B' => body,
-                'C' => Color::new(0.20, 0.25, 0.38, 1.0),
-                'H' => HEADLIGHT,
-                'T' => Color::new(0.85, 0.12, 0.10, 1.0),
-                'W' => Color::new(0.02, 0.02, 0.04, 1.0),
+                'C' => look.cabin,
+                'H' => look.headlight,
+                'T' => look.tail,
+                'W' => look.wheel,
                 _ => continue,
             };
             // The pattern faces right; mirror it for a car driving left.
@@ -338,10 +341,10 @@ fn draw_car(car: &Car, view: &StreetView, background: Option<&Texture2D>) {
                 width - 1 - column
             };
             room_rect(
-                left + column as f32 * BLOCK,
-                glass.y + (CAR_PATTERN.len() - 1 - row) as f32 * BLOCK,
-                BLOCK,
-                BLOCK,
+                left + column as f32 * block,
+                glass.y + (look.pattern.len() - 1 - row) as f32 * block,
+                block,
+                block,
                 Some(glass),
                 color,
             );
@@ -349,25 +352,25 @@ fn draw_car(car: &Car, view: &StreetView, background: Option<&Texture2D>) {
     }
     // A soft glow around the headlight on the glass.
     let front = if car.rightwards {
-        left + width as f32 * BLOCK
+        left + width as f32 * block
     } else {
         left
     };
     let ahead = if car.rightwards { 1.0 } else { -1.0 };
     for (step, alpha) in [(1.0, 0.22), (2.0, 0.12), (3.0, 0.06)] {
         room_rect(
-            front.min(front + ahead * step * BLOCK * 2.0),
+            front.min(front + ahead * step * block * 2.0),
             glass.y,
-            step * BLOCK * 2.0,
-            BLOCK * 3.0,
+            step * block * 2.0,
+            block * 3.0,
             Some(glass),
-            with_alpha(HEADLIGHT, alpha),
+            with_alpha(look.headlight, alpha),
         );
     }
     // The bar between the two panes is in front of the car: put it back from the picture.
     if let Some(background) = background {
         let scale = background.width() / SCREEN_WIDTH;
-        let (x, w) = (glass.x + glass.w * 0.4, BLOCK);
+        let (x, w) = (glass.x + glass.w * 0.4, block);
         let bar = Rect::new(
             x * scale,
             (SCREEN_HEIGHT - glass.y - glass.h) * scale,
@@ -391,6 +394,7 @@ fn draw_car(car: &Car, view: &StreetView, background: Option<&Texture2D>) {
 /// The light that comes in through the window: a beam falling down the wall and over the floor,
 /// sliding along as the car passes, and a glint in the mirror.
 fn draw_light(car: &Car, view: &StreetView) {
+    let look = &view.look;
     let strength = glow(car);
     let glass = view.glass;
     let ahead = if car.rightwards { 1.0 } else { -1.0 };
@@ -410,14 +414,14 @@ fn draw_light(car: &Car, view: &StreetView) {
         let alpha = ((1.0 - t).powf(1.4) * strength * 0.30 * 10.0).round() / 10.0;
         let middle = centre + ahead * depth * 0.45 * t;
         let half = glass.w * 0.18 + depth * 0.22 * t;
-        let snap = |value: f32| (value / BLOCK).round() * BLOCK;
+        let snap = |value: f32| (value / look.block).round() * look.block;
         room_rect(
             snap(middle - half),
             snap(y),
             snap(half * 2.0),
-            snap(depth / LIGHT_BANDS as f32).max(BLOCK),
+            snap(depth / LIGHT_BANDS as f32).max(look.block),
             None,
-            with_alpha(Color::new(1.0, 0.7, 0.35, 1.0), alpha),
+            with_alpha(look.beam, alpha),
         );
     }
     if let Some(mirror) = view.mirror {
@@ -435,18 +439,18 @@ fn draw_light(car: &Car, view: &StreetView) {
             stripe,
             mirror.h,
             Some(mirror),
-            with_alpha(Color::new(1.0, 0.9, 0.7, 1.0), strength * 0.35),
+            with_alpha(look.glint, strength * 0.35),
         );
     }
 }
 
 /// A faint warm wash over everything, so the whole room brightens a little.
-fn draw_wash(car: &Car) {
+fn draw_wash(car: &Car, look: &CarLook) {
     draw_rectangle(
         0.0,
         0.0,
         SCREEN_WIDTH,
         SCREEN_HEIGHT,
-        Color::new(1.0, 0.8, 0.5, glow(car) * 0.05),
+        with_alpha(look.wash, glow(car) * look.wash_strength),
     );
 }

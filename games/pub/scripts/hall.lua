@@ -105,7 +105,7 @@ item.beer = {
     take("beer")
     give("empty_glass")
     say("Ahh. That was almost worth the coin.")
-    corruptionEvent()
+    screenEffect("corruption", 0.5)
     say("What the hell was that?")
   end,
 }

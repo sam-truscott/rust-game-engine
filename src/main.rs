@@ -1,13 +1,14 @@
 #![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
 
 mod automation;
-mod corruption;
+mod effects;
 mod render;
 
 use std::path::Path;
 
 use automation::{Automation, FIXED_DELTA, Frame, Inputs};
-use corruption::Corruption;
+use effects::ScreenEffects;
+use game::manifest::Manifest;
 use game::menu::{self, MenuAction, SaveMenu};
 use game::save::{AUTOSAVE, SaveStore};
 use game::session::Session;
@@ -19,14 +20,10 @@ use render::{CharacterSprite, CursorSprite, FRAME_HEIGHT, RoomRenderer, Textures
 const SPEECH_WRAP_WIDTH: f32 = 160.0;
 const TEXT_SIZE: f32 = 8.0;
 const LINE_SPACING: f32 = 1.15;
-const PLAYER_SPRITE: &str = "characters/player.png";
-const CURSOR_SPRITE: &str = "cursor.png";
 /// The cursor is drawn at this fraction of the virtual screen scale, so it is smaller than the art.
 const CURSOR_SCALE: f32 = 0.5;
 /// The held item is drawn at the cursor's bottom right, half the size of its 16x16 icon in the panel.
 const HELD_ICON_SIZE: f32 = 8.0;
-const CLEAR: Color = Color::new(0.1, 0.1, 0.2, 1.0);
-const PANEL_COLOR: Color = Color::new(0.06, 0.06, 0.1, 1.0);
 const SHOT_WIDTH: u32 = 1280;
 const SHOT_HEIGHT: u32 = 720;
 
@@ -97,7 +94,7 @@ struct Game {
     cursor: CursorSprite,
     /// Set by the first cursor input, so a scripted run shows no pointer until it moves one.
     cursor_placed: bool,
-    corruption: Corruption,
+    effects: ScreenEffects,
     renderer: RoomRenderer,
     textures: Textures,
     session: Session,
@@ -111,7 +108,9 @@ struct Game {
 
 impl Game {
     fn new(new_game: bool, persist: bool) -> Self {
-        let store = SaveStore::in_default_dir();
+        let store = SaveStore::in_default_dir(
+            &Manifest::load().map_or_else(|_| "Game".to_owned(), |manifest| manifest.id),
+        );
         let session = match (persist, new_game) {
             (false, _) => load_session(),
             (true, true) => {
@@ -128,12 +127,12 @@ impl Game {
                 .map_or(1, |since| since.subsec_nanos() ^ since.as_secs() as u32);
             session.world.seed_street(seed);
         }
-        let mut textures = Textures::preload();
+        let mut textures = Textures::preload(&session.manifest.rooms);
         Game {
-            sprite: CharacterSprite::new(PLAYER_SPRITE),
-            cursor: CursorSprite::new(CURSOR_SPRITE),
+            sprite: CharacterSprite::new(&session.manifest.player),
+            cursor: CursorSprite::new(&session.manifest.cursor),
             cursor_placed: false,
-            corruption: Corruption::new(),
+            effects: ScreenEffects::default(),
             renderer: RoomRenderer::new(&session.room, &mut textures),
             textures,
             session,
@@ -148,7 +147,7 @@ impl Game {
     fn restart(&mut self) {
         self.session = load_session();
         // Loaded again so that edited art shows up in a debug build.
-        self.textures = Textures::preload();
+        self.textures = Textures::preload(&self.session.manifest.rooms);
         self.renderer = RoomRenderer::new(&self.session.room, &mut self.textures);
     }
 
@@ -258,12 +257,13 @@ impl Game {
 
         // The room is drawn shifted up so that its bottom edge sits on top of the panel.
         set_camera(&camera(ui::PANEL_HEIGHT));
-        clear_background(CLEAR);
+        clear_background(self.session.manifest.theme.background);
         self.renderer.draw(
             &self.session.player,
             &self.sprite,
             &self.session.world,
             self.session.is_dark(),
+            self.session.manifest.theme.darkness,
         );
         set_camera(&camera(0.0));
         self.draw_panel();
@@ -280,11 +280,11 @@ impl Game {
             }),
             None => set_default_camera(),
         }
-        clear_background(CLEAR);
-        let corruption = self.session.world.corruption();
-        if let Some(progress) = corruption {
-            self.corruption.begin(progress);
-        }
+        clear_background(self.session.manifest.theme.background);
+        let effect = self.session.world.screen_effect();
+        let applied = effect
+            .as_ref()
+            .is_some_and(|effect| self.effects.begin(effect));
         draw_texture_ex(
             &target.texture,
             view.offset.x,
@@ -296,8 +296,8 @@ impl Game {
                 ..Default::default()
             },
         );
-        if corruption.is_some() {
-            self.corruption.end();
+        if applied {
+            self.effects.end();
         }
 
         self.draw_speech(view);
@@ -326,7 +326,7 @@ impl Game {
             SCREEN_HEIGHT - ui::PANEL_HEIGHT,
             SCREEN_WIDTH,
             ui::PANEL_HEIGHT,
-            PANEL_COLOR,
+            self.session.manifest.theme.panel,
         );
 
         for (index, id) in session
@@ -634,6 +634,8 @@ struct Args {
     out: String,
     /// Start a new game instead of resuming the autosave (existing saves are kept).
     new_game: bool,
+    /// Play the game in this folder instead of the bundled one.
+    game: Option<String>,
 }
 
 fn parse_args() -> Args {
@@ -641,12 +643,14 @@ fn parse_args() -> Args {
         script: None,
         out: "screenshots".to_owned(),
         new_game: false,
+        game: None,
     };
     let mut words = std::env::args().skip(1);
     while let Some(word) = words.next() {
         match word.as_str() {
             "--auto" => args.script = words.next(),
             "--out" => args.out = words.next().unwrap_or(args.out),
+            "--game" => args.game = words.next(),
             "--new" | "-n" => args.new_game = true,
             "--fullscreen" | "-f" => {}
             other => eprintln!("ignoring unknown argument {other}"),
@@ -655,9 +659,34 @@ fn parse_args() -> Args {
     args
 }
 
+/// `--check [dir]`: lists the problems in a game (the bundled one without a folder) and exits, before
+/// any window opens.
+fn check_and_exit(dir: Option<String>) -> ! {
+    if let Some(dir) = dir {
+        game::assets::use_dir(dir);
+    }
+    let problems = game::check::check_game();
+    for problem in &problems {
+        println!("{problem}");
+    }
+    println!("{} problem(s)", problems.len());
+    std::process::exit(i32::from(!problems.is_empty()))
+}
+
 fn window_conf() -> Conf {
+    let mut words = std::env::args();
+    while let Some(word) = words.next() {
+        if word == "--check" {
+            check_and_exit(words.next());
+        }
+        if word == "--game"
+            && let Some(dir) = words.next()
+        {
+            game::assets::use_dir(dir);
+        }
+    }
     Conf {
-        window_title: "Game".to_owned(),
+        window_title: Manifest::load().map_or_else(|_| "Game".to_owned(), |m| m.title),
         window_width: 1280,
         window_height: 720,
         fullscreen: std::env::args().any(|word| word == "--fullscreen" || word == "-f"),
@@ -668,6 +697,9 @@ fn window_conf() -> Conf {
 #[macroquad::main(window_conf)]
 async fn main() {
     let args = parse_args();
+    if let Some(dir) = &args.game {
+        game::assets::use_dir(dir);
+    }
     let mut automation = args.script.as_deref().map(|script| {
         Automation::load(script, &args.out).unwrap_or_else(|error| {
             eprintln!("{error}");

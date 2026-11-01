@@ -5,7 +5,7 @@ use std::cell::RefCell;
 use std::rc::Rc;
 
 use macroquad::math::Vec2;
-use mlua::{Function, Lua, LuaOptions, StdLib, Thread};
+use mlua::{Function, Lua, LuaOptions, StdLib, Table, Thread};
 
 use crate::actor::Actor;
 use crate::room::{Clip, DEFAULT_FPS, Prop, Room};
@@ -29,6 +29,9 @@ function enterRoom(room, x, y) __enter_room(room, x, y) coroutine.yield() end
 hotspot = {}
 item = {}
 
+-- What is said when a script has no handler (the game's game.lua replaces these).
+defaults = { look = "I see nothing special.", interact = "I can't do that.", use = "That doesn't work." }
+
 -- Each room has its own table of hotspot handlers, so ids only have to be unique within a room.
 __hotspots = {}
 function __scope(room)
@@ -43,9 +46,9 @@ local function run(handlers_by_id, id, verb)
   if handler then
     handler()
   elseif verb == "look" then
-    say("I see nothing special.")
+    say(defaults.look)
   else
-    say("I can't do that.")
+    say(defaults.interact)
   end
 end
 
@@ -63,7 +66,7 @@ function __use_with(held, kind, target, x, y)
     if handler then
       handler()
     else
-      say("That doesn't work.")
+      say(defaults.use)
     end
   end
 end
@@ -259,10 +262,26 @@ impl ScriptRunner {
                 Ok(())
             }
         );
-        bind!(lua, globals, world, "corruptionEvent", |w| {
-            w.trigger_corruption();
-            Ok(())
-        });
+        bind!(
+            lua,
+            globals,
+            world,
+            "screenEffect",
+            |w, name: String, seconds: f32| {
+                finite(&[seconds])?;
+                if seconds <= 0.0
+                    || !name
+                        .chars()
+                        .all(|c| c.is_ascii_alphanumeric() || c == '_' || c == '-')
+                {
+                    return Err(mlua::Error::runtime(
+                        "screenEffect needs a plain shader name and positive seconds",
+                    ));
+                }
+                w.start_screen_effect(&name, seconds);
+                Ok(())
+            }
+        );
         bind!(lua, globals, world, "flag", |w, name: String| Ok(
             w.flag(&name)
         ));
@@ -275,6 +294,14 @@ impl ScriptRunner {
             world,
             room_change: None,
         })
+    }
+
+    /// Sets the lines said when a script has no handler for a click.
+    pub fn set_defaults(&self, look: &str, interact: &str, use_with: &str) -> mlua::Result<()> {
+        let defaults: Table = self.lua.globals().get("defaults")?;
+        defaults.set("look", look)?;
+        defaults.set("interact", interact)?;
+        defaults.set("use", use_with)
     }
 
     /// Makes the hotspot handlers a script defines belong to this room (until the next call).

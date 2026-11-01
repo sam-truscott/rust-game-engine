@@ -1,5 +1,5 @@
 # Go through the door into the dark closet, turn the light on, look at the glasses, and come back.
-# Run: target/debug/game.exe --auto play/closet.txt --out screenshots
+# Run: target/debug/game.exe --auto games/pub/play/closet.txt --out screenshots
 # Positions are screen points (320x180, y up): add 26 to a room y. Two `click`s in a row are a double click.
 wait 3
 click 136 149

@@ -14,7 +14,24 @@ struct Data {
     flags: HashSet<String>,
     clock: f64,
     street: Street,
-    corruption: f32,
+    effect: Option<Effect>,
+}
+
+/// A whole-screen shader effect in progress.
+#[derive(Clone, Debug, PartialEq)]
+struct Effect {
+    name: String,
+    seconds: f32,
+    elapsed: f32,
+}
+
+/// A screen effect seen from the drawing: which one, how long it lasts and how far it has got.
+#[derive(Clone, Debug, PartialEq)]
+pub struct ScreenEffect {
+    pub name: String,
+    pub seconds: f32,
+    /// 0 to 1.
+    pub progress: f32,
 }
 
 /// Frames `first` to `last` (either direction) shown one after another, each for 1/fps seconds.
@@ -153,8 +170,13 @@ impl World {
     }
 
     /// Restarts the traffic from a seed, so the cars come at different times.
+    /// Sets how often cars come, from the room the player is in.
+    pub fn set_street_timing(&self, timing: crate::street::Timing) {
+        self.0.borrow_mut().street.set_timing(timing);
+    }
+
     pub fn seed_street(&self, seed: u32) {
-        self.0.borrow_mut().street = Street::new(seed);
+        self.0.borrow_mut().street.reseed(seed);
     }
 
     pub fn is_animating(&self, id: &str) -> bool {
@@ -165,7 +187,12 @@ impl World {
     pub fn advance(&self, delta_seconds: f32) {
         let mut data = self.0.borrow_mut();
         data.clock += delta_seconds as f64;
-        data.corruption = (data.corruption - delta_seconds).max(0.0);
+        if let Some(effect) = &mut data.effect {
+            effect.elapsed += delta_seconds;
+            if effect.elapsed >= effect.seconds {
+                data.effect = None;
+            }
+        }
         data.street.advance(delta_seconds);
         for animation in data.animations.values_mut() {
             animation.elapsed += delta_seconds;
@@ -234,34 +261,41 @@ impl World {
     }
 }
 
-/// How long the corruption event lasts, in seconds.
-pub const CORRUPTION_SECONDS: f32 = 0.5;
-
 impl World {
-    /// Starts the corruption event: the whole screen pixelates for half a second. Not saved.
-    pub fn trigger_corruption(&self) {
-        self.0.borrow_mut().corruption = CORRUPTION_SECONDS;
+    /// Starts a whole-screen effect (a shader named in the game's `shaders` folder) for `seconds`,
+    /// replacing any running one. Not saved.
+    pub fn start_screen_effect(&self, name: &str, seconds: f32) {
+        self.0.borrow_mut().effect = Some(Effect {
+            name: name.to_owned(),
+            seconds,
+            elapsed: 0.0,
+        });
     }
 
-    /// How far the corruption event has got, 0 to 1, or None when it is not running.
-    pub fn corruption(&self) -> Option<f32> {
-        let remaining = self.0.borrow().corruption;
-        (remaining > 0.0).then(|| 1.0 - remaining / CORRUPTION_SECONDS)
+    /// The effect now running, if any.
+    pub fn screen_effect(&self) -> Option<ScreenEffect> {
+        self.0.borrow().effect.as_ref().map(|effect| ScreenEffect {
+            name: effect.name.clone(),
+            seconds: effect.seconds,
+            progress: (effect.elapsed / effect.seconds).clamp(0.0, 1.0),
+        })
     }
 }
 
 #[cfg(test)]
-mod corruption_tests {
+mod effect_tests {
     use super::*;
 
     #[test]
-    fn corruption_runs_for_half_a_second_then_ends() {
+    fn a_screen_effect_runs_for_its_time_then_ends() {
         let world = World::default();
-        assert_eq!(world.corruption(), None);
-        world.trigger_corruption();
+        assert_eq!(world.screen_effect(), None);
+        world.start_screen_effect("corruption", 0.5);
         world.advance(0.25);
-        assert!((world.corruption().unwrap() - 0.5).abs() < 1e-4);
+        let effect = world.screen_effect().unwrap();
+        assert_eq!(effect.name, "corruption");
+        assert!((effect.progress - 0.5).abs() < 1e-4);
         world.advance(0.3);
-        assert_eq!(world.corruption(), None);
+        assert_eq!(world.screen_effect(), None);
     }
 }

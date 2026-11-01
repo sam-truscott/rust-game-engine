@@ -5,24 +5,16 @@ use macroquad::math::Vec2;
 use crate::actor::Actor;
 use crate::assets;
 use crate::items::Items;
+use crate::manifest::Manifest;
 use crate::room::{Hotspot, Room};
 use crate::save::SaveData;
 use crate::script::ScriptRunner;
 use crate::ui;
 use crate::world::World;
 
-/// Rooms are `rooms/<id>.lua` with their handlers in `scripts/<id>.lua`; scripts name them by id.
-pub const ROOMS: [&str; 2] = ["hall", "closet"];
-const START_ROOM: &str = "hall";
-const INTRO_SCRIPT: &str = "scripts/intro.lua";
-const ITEMS: &str = "items.lua";
-const START_POSITION: Vec2 = Vec2::new(30.0, 50.0);
-
 /// Script handlers: `hotspot.<id>.look` and `.interact`, and the same for items.
 const LOOK: &str = "look";
 const INTERACT: &str = "interact";
-const DOUBLE_CLICK_SECONDS: f32 = 0.4;
-const DOUBLE_CLICK_DISTANCE: f32 = 4.0;
 
 pub fn load_room(id: &str) -> Result<Room, String> {
     let path = format!("rooms/{id}.lua");
@@ -31,6 +23,7 @@ pub fn load_room(id: &str) -> Result<Room, String> {
 }
 
 pub struct Session {
+    pub manifest: Manifest,
     pub room: Room,
     /// The current room's id, such as "hall".
     pub room_id: String,
@@ -58,13 +51,22 @@ impl Session {
         let text = |path: &str| assets::text(path).ok_or_else(|| format!("missing {path}"));
         let failed = |path: &str, error: mlua::Error| format!("{path}: {error}");
 
-        let room = load_room(START_ROOM)?;
-        let items = Items::from_lua(&text(ITEMS)?, ITEMS).map_err(|error| failed(ITEMS, error))?;
+        let manifest = Manifest::load()?;
+        let room = load_room(&manifest.start_room)?;
+        let items = Items::from_lua(&text(&manifest.items)?, &manifest.items)
+            .map_err(|error| failed(&manifest.items, error))?;
 
         let world = World::default();
         let mut scripts =
             ScriptRunner::with_world(world.clone()).map_err(|error| failed("Lua", error))?;
-        for id in ROOMS {
+        scripts
+            .set_defaults(
+                &manifest.defaults.look,
+                &manifest.defaults.interact,
+                &manifest.defaults.use_with,
+            )
+            .map_err(|error| failed("Lua", error))?;
+        for id in &manifest.rooms {
             let path = format!("scripts/{id}.lua");
             let source = text(&path)?;
             scripts
@@ -73,17 +75,23 @@ impl Session {
                 .map_err(|error| failed(&path, error))?;
         }
         scripts
-            .set_room(START_ROOM)
+            .set_room(&manifest.start_room)
             .map_err(|error| failed("Lua", error))?;
-        scripts
-            .start(INTRO_SCRIPT, &text(INTRO_SCRIPT)?)
-            .map_err(|error| failed(INTRO_SCRIPT, error))?;
+        if let Some(intro) = &manifest.intro {
+            scripts
+                .start(intro, &text(intro)?)
+                .map_err(|error| failed(intro, error))?;
+        }
 
-        let start = room.constrain(START_POSITION.x, START_POSITION.y);
+        if let Some(street) = room.street() {
+            world.set_street_timing(street.timing);
+        }
+        let start = room.constrain(manifest.start.x, manifest.start.y);
         Ok(Session {
             room,
-            room_id: START_ROOM.to_owned(),
-            player: Actor::new(start.x, start.y),
+            room_id: manifest.start_room.clone(),
+            player: Actor::with_tuning(start.x, start.y, manifest.tuning),
+            manifest,
             scripts,
             world,
             items,
@@ -113,10 +121,10 @@ impl Session {
     /// A session at the moment a save was made, without the intro. The player stands still and
     /// nothing is held.
     pub fn from_save(data: &SaveData) -> Result<Self, String> {
-        if !ROOMS.contains(&data.room.as_str()) {
+        let mut session = Self::load()?;
+        if !session.manifest.rooms.contains(&data.room) {
             return Err(format!("save is in unknown room {}", data.room));
         }
-        let mut session = Self::load()?;
         session.scripts.clear();
         session.world.import(&data.world);
         session.enter_room(&data.room, data.x, data.y);
@@ -147,9 +155,12 @@ impl Session {
         match result {
             Ok(room) => {
                 let spot = room.constrain(x, y);
+                if let Some(street) = room.street() {
+                    self.world.set_street_timing(street.timing);
+                }
                 self.room = room;
                 self.room_id = id.to_owned();
-                self.player = Actor::new(spot.x, spot.y);
+                self.player = Actor::with_tuning(spot.x, spot.y, self.manifest.tuning);
                 self.room_changed = true;
             }
             Err(error) => eprintln!("[room] {error}"),
@@ -160,7 +171,7 @@ impl Session {
         self.clock += delta_seconds;
         if let Some((item, _)) = self
             .pending_look
-            .take_if(|(_, at)| self.clock - *at > DOUBLE_CLICK_SECONDS)
+            .take_if(|(_, at)| self.clock - *at > self.manifest.tuning.double_click_seconds)
             && !self.scripts.is_running()
         {
             report(&item, self.scripts.interact_item(&item, LOOK));
@@ -194,8 +205,10 @@ impl Session {
     /// Whether this click and the one before it are a double click; a double click is used up, so a
     /// third quick click starts a new one.
     fn is_double_click(&mut self, point: Vec2) -> bool {
+        let tuning = self.manifest.tuning;
         let double = self.last_click.is_some_and(|(time, at)| {
-            self.clock - time <= DOUBLE_CLICK_SECONDS && at.distance(point) <= DOUBLE_CLICK_DISTANCE
+            self.clock - time <= tuning.double_click_seconds
+                && at.distance(point) <= tuning.double_click_distance
         });
         self.last_click = (!double).then_some((self.clock, point));
         double
@@ -216,7 +229,7 @@ impl Session {
             self.committed = false;
         }
         if self.input_locked() {
-            if self.clock - self.committed_at > DOUBLE_CLICK_SECONDS {
+            if self.clock - self.committed_at > self.manifest.tuning.double_click_seconds {
                 // A click skips the line being spoken; the script goes on to its next line or ends.
                 // Not for the click that is part of starting the action (a double click).
                 self.player.stop_speaking();

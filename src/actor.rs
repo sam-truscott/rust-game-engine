@@ -3,11 +3,9 @@ use std::collections::VecDeque;
 use macroquad::math::Vec2;
 
 use crate::direction::Direction;
+use crate::manifest::Tuning;
 use crate::room::Room;
 
-const WALK_SPEED: f32 = 60.0;
-const SPEECH_BASE_SECONDS: f32 = 1.0;
-const SPEECH_SECONDS_PER_CHAR: f32 = 0.05;
 const MIN_MOVE: f32 = 1e-3;
 
 pub struct Actor {
@@ -17,11 +15,18 @@ pub struct Actor {
     walk_distance: f32,
     speech: Option<String>,
     speech_remaining: f32,
+    tuning: Tuning,
 }
 
 impl Actor {
     pub fn new(x: f32, y: f32) -> Self {
+        Self::with_tuning(x, y, Tuning::default())
+    }
+
+    /// An actor that walks and speaks at the speeds a game's manifest asks for.
+    pub fn with_tuning(x: f32, y: f32, tuning: Tuning) -> Self {
         Actor {
+            tuning,
             position: Vec2::new(x, y),
             path: VecDeque::new(),
             facing: Direction::Front,
@@ -67,8 +72,8 @@ impl Actor {
 
     pub fn say(&mut self, text: &str) {
         self.speech = Some(text.to_owned());
-        self.speech_remaining =
-            SPEECH_BASE_SECONDS + SPEECH_SECONDS_PER_CHAR * text.chars().count() as f32;
+        self.speech_remaining = self.tuning.speech_seconds
+            + self.tuning.speech_seconds_per_char * text.chars().count() as f32;
     }
 
     pub fn set_facing(&mut self, facing: Direction) {
@@ -98,7 +103,7 @@ impl Actor {
     }
 
     pub fn update(&mut self, delta_seconds: f32) {
-        let mut step = WALK_SPEED * delta_seconds;
+        let mut step = self.tuning.walk_speed * delta_seconds;
         while step > 0.0 {
             let Some(&next) = self.path.front() else {
                 break;

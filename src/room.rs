@@ -10,14 +10,7 @@ const MIN_MITER_DENOMINATOR: f32 = 0.1;
 /// Frames a second for an animated prop that does not say.
 pub const DEFAULT_FPS: f32 = 8.0;
 
-/// A window onto a street: where cars are seen (`glass`, room coordinates, y up), an optional mirror
-/// that catches their light and the y of the floor the light reaches.
-#[derive(Clone, Copy, Debug)]
-pub struct StreetView {
-    pub glass: Rect,
-    pub mirror: Option<Rect>,
-    pub floor: f32,
-}
+pub use crate::street::StreetView;
 
 #[derive(Clone, Copy, Debug)]
 pub struct Segment {
@@ -211,23 +204,7 @@ impl Room {
         let dark = table.get::<Option<bool>>("dark")?.unwrap_or(false);
         let street = table
             .get::<Option<Table>>("street")?
-            .map(|street| {
-                let rect = |key: &str| -> mlua::Result<Option<Rect>> {
-                    street
-                        .get::<Option<Table>>(key)?
-                        .map(|r| Ok(Rect::new(r.get(1)?, r.get(2)?, r.get(3)?, r.get(4)?)))
-                        .transpose()
-                };
-                let glass = rect("glass")?
-                    .ok_or_else(|| mlua::Error::runtime("street needs a glass rect"))?;
-                Ok::<_, mlua::Error>(StreetView {
-                    glass,
-                    mirror: rect("mirror")?,
-                    floor: street
-                        .get::<Option<f32>>("floor")?
-                        .unwrap_or(glass.y - 50.0),
-                })
-            })
+            .map(|street| StreetView::from_lua(&street))
             .transpose()?;
         Ok(
             Self::with_options(outline, obstacles, margin, table.get("background")?, props)

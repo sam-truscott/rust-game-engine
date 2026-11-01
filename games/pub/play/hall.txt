@@ -1,5 +1,5 @@
 # Walk to the gap between the table and the bar, then in front of the bar, then restart.
-# Run: target/debug/game.exe --auto play/hall.txt --out screenshots
+# Run: target/debug/game.exe --auto games/pub/play/hall.txt --out screenshots
 # Positions are screen points (320x180, y up): the room is above the 26-high panel, so a room point
 # (x, y) is clicked at (x, y + 26).
 # The `where` lines print the player's state; compare them with the comments.

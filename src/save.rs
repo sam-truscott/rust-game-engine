@@ -138,11 +138,17 @@ impl SaveStore {
 
     /// `GAME_SAVE_DIR` if set, else `%APPDATA%\Game\saves` (`~/.local/share/game/saves` elsewhere),
     /// else `saves` in the working directory.
-    pub fn in_default_dir() -> Self {
+    pub fn in_default_dir(id: &str) -> Self {
         let var = |name: &str| std::env::var_os(name).map(PathBuf::from);
         let dir = var("GAME_SAVE_DIR")
-            .or_else(|| var("APPDATA").map(|dir| dir.join("Game").join("saves")))
-            .or_else(|| var("HOME").map(|dir| dir.join(".local/share/game/saves")))
+            .or_else(|| var("APPDATA").map(|dir| dir.join(id).join("saves")))
+            .or_else(|| {
+                var("HOME").map(|dir| {
+                    dir.join(".local/share")
+                        .join(id.to_lowercase())
+                        .join("saves")
+                })
+            })
             .unwrap_or_else(|| PathBuf::from("saves"));
         SaveStore::new(dir)
     }

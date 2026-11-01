@@ -1,7 +1,9 @@
 pub mod actor;
 pub mod assets;
+pub mod check;
 pub mod direction;
 pub mod items;
+pub mod manifest;
 pub mod menu;
 pub mod pathfinder;
 pub mod room;
