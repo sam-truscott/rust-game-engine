@@ -2,30 +2,36 @@
 # Run: target/debug/game.exe --auto games/pub/play/hotspots.txt --out screenshots
 # Positions are screen points (320x180, y up): the room is above the 26-high panel, so a room point
 # (x, y) is clicked at (x, y + 26). Two `click`s in a row are a double click (the time step is fixed).
-wait 3
-move 240 96                 # over the bar
-click 240 96                # single click: look at the bar
-wait 0.6
-shot h1_walking_to_bar
-wait 4
-shot h2_looking             # standing at the bar, speaking
-where                       # (240, 40), speaking, handler still running
-wait 4
-where                       # (240, 40), nothing running
-
+# To keep it short the player jumps to each spot (double click on the floor) and speech is skipped with
+# a click on the panel's empty right end (314, 13), which does nothing if the line has already ended.
+wait 0.5
+click 314 13                # skip the intro line
+wait 0.1
+click 88 106
+click 88 106                # double click the floor: jump to the window's spot (88, 80)
 click 96 146                # look at the window
 wait 0.3
 click 96 146                # second click: cuts the look short and interacts instead
-wait 4
-shot h3_window_interact     # at the window's spot (96, 80), "It doesn't open."
-wait 3
-where                       # (96, 80), nothing running
+wait 0.6
+shot h1_window_interact     # "It doesn't open."
+where                       # (88, 80), speaking, handler running
+click 314 13                # skip the line
+wait 0.1
+where                       # (88, 80), nothing running
 
+click 240 66
+click 240 66                # jump to the bar's spot (240, 40)
 click 240 96
-click 240 96                # the bar again
-wait 4
-shot h4_bar_interact        # "The till is locked."
-wait 3
-click 160 20                # on the panel: nothing happens
-where                       # player has not moved: (240, 40)
+click 240 96                # double click the bar
+wait 0.6
+shot h2_bar_interact        # "Nobody is serving."
+click 314 13
+wait 0.1
+
+click 240 96                # single click: look at the bar
+wait 0.6
+shot h3_bar_look            # "A long oak bar, ring-stained and well loved."
+click 160 20                # on the panel: skips the line, nothing else happens
+wait 0.1
+where                       # player has not moved: (240, 40), nothing running
 quit

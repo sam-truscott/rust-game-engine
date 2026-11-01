@@ -1,39 +1,71 @@
 # Meet the people in the pub and buy a beer. Take the key from the closet, open the cupboard for the coin,
-# then use the coin on the barman.
+# then use the coin on the barman, drink the beer and give the glass back.
 # Run: target/debug/game.exe --auto games/pub/play/bar.txt --out screenshots
 # Positions are screen points (320x180, y up): add 26 to a room y. Two `click`s in a row are a double click.
-wait 3
+# Double clicking a door goes through it at once; double clicking the floor jumps there; a click on the
+# panel's empty right end (314, 13) skips a line.
+wait 1
 shot b1_pub                 # barman polishing a glass, a man at the bar, two at the table, all moving
 click 136 149
 click 136 149               # into the closet
-wait 6
+wait 0.1
+click 160 52
+click 160 52                # jump to the switch
 click 160 94
 click 160 94                # light on
-wait 4
+wait 0.5
+click 314 13                # skip "Click."
+wait 0.1
+click 150 50
+click 150 50                # jump to the key
 click 151 92
 click 151 92                # take the key
-wait 6
+wait 0.5
+click 314 13                # skip "Got it."
+wait 0.1
 click 180 89
 click 180 89                # back to the bar
-wait 6
+wait 0.1
+click 45 96
+click 45 96                 # jump to the cupboard
 click 16 13
 click 16 13                 # hold the key
-click 45 126
-wait 9                      # the cupboard opens: a coin in slot 1
+click 45 126                # use it on the cupboard: a coin in slot 1
+wait 0.5
+click 314 13                # skip "The key fits the cupboard!"
+wait 0.1
+click 314 13                # skip "Inside is a silver coin."
+wait 0.1
+click 224 70
+click 224 70                # jump to the barman's spot (224, 44)
 click 16 13
 click 16 13                 # hold the coin
 click 251 126               # the barman
-wait 6.5
+wait 0.5
+click 314 13                # skip "One beer, please."
+wait 1
 shot b2_serving             # the barman takes the coin and pours
-wait 4
-shot b3_served              # back to polishing, a beer in the inventory
-where                       # carrying ["beer"]
+wait 1.2
+shot b3_served              # back to polishing, a beer in the inventory; "Cheers."
+click 314 13
+wait 0.1
+where                       # carrying ["beer"], nothing running
 click 16 13
 click 16 13                 # drink the beer: an empty glass replaces it
-wait 7.5
+wait 0.5
+click 314 13                # skip "Down the hatch."
+wait 0.1
+click 314 13                # skip "Ahh. That was almost worth the coin."
+wait 0.1
+click 314 13                # skip "What the hell was that?"
+wait 0.1
 click 16 13
-click 16 13
+click 16 13                 # hold the glass
 click 251 126               # give the glass back
-wait 8
-where                       # carrying []
+wait 0.5
+click 314 13                # skip "Your glass."
+wait 0.5
+click 314 13                # skip the barman's thanks
+wait 0.1
+where                       # carrying [], nothing running
 quit

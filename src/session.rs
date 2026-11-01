@@ -41,7 +41,9 @@ pub struct Session {
     pending_look: Option<(String, f32)>,
     /// Set when a script started that a click must not cut short (using an item, interacting).
     committed: bool,
-    committed_at: f32,
+    /// When the action running now was started by a click; a click this soon after is the second half of
+    /// a double click, not one that skips its first line.
+    started_at: f32,
     room_changed: bool,
 }
 
@@ -101,7 +103,7 @@ impl Session {
             last_click: None,
             pending_look: None,
             committed: false,
-            committed_at: 0.0,
+            started_at: 0.0,
             room_changed: false,
         })
     }
@@ -174,6 +176,7 @@ impl Session {
             .take_if(|(_, at)| self.clock - *at > self.manifest.tuning.double_click_seconds)
             && !self.scripts.is_running()
         {
+            self.started_at = self.clock;
             report(&item, self.scripts.interact_item(&item, LOOK));
         }
         self.player.update(delta_seconds);
@@ -220,20 +223,16 @@ impl Session {
     /// looking by the time the second arrives, so that is cancelled in favour of interacting. On a
     /// carried item there is no walk to hide the look, so it waits until a second click can no longer come.
     ///
-    /// While an action (using an item, interacting) runs a click only skips the current speech line. Other clicks that
-    /// would start something are ignored while a script is running, except the second
-    /// click of a double click. With an item held (picked by double clicking it) the next click uses
+    /// While an action (using an item, interacting) runs a click only skips the current speech line. While any
+    /// other script runs (a look, the intro) clicks that would start something are ignored, except the second
+    /// click of a double click, and skip the current line instead. With an item held (picked by double clicking it) the next click uses
     /// it on what is under it; that is never cut short, as a half-finished script could lose items.
     pub fn click(&mut self, point: Vec2) {
         if !self.scripts.is_running() {
             self.committed = false;
         }
         if self.input_locked() {
-            if self.clock - self.committed_at > self.manifest.tuning.double_click_seconds {
-                // A click skips the line being spoken; the script goes on to its next line or ends.
-                // Not for the click that is part of starting the action (a double click).
-                self.player.stop_speaking();
-            }
+            self.skip_line();
             return;
         }
         // Whatever this click does replaces the look a single click on an item is waiting to start.
@@ -242,8 +241,10 @@ impl Session {
         let double = self.is_double_click(point) && !holding;
         let busy = self.scripts.is_running();
         if ui::in_panel(point) {
-            if let Some(item) = self.item_at(point) {
-                self.click_item(&item, double, busy);
+            match self.item_at(point) {
+                Some(item) => self.click_item(&item, double, busy),
+                None if busy => self.skip_line(),
+                None => {}
             }
         } else {
             self.click_room(ui::to_room(point), double, busy);
@@ -268,9 +269,17 @@ impl Session {
         }
     }
 
+    /// A click that starts nothing while a script runs skips the line being spoken; the script goes on
+    /// to its next line or ends. Not for a click that is part of starting the action (a double click).
+    fn skip_line(&mut self) {
+        if self.clock - self.started_at > self.manifest.tuning.double_click_seconds {
+            self.player.stop_speaking();
+        }
+    }
+
     fn commit(&mut self) {
         self.committed = true;
-        self.committed_at = self.clock;
+        self.started_at = self.clock;
     }
 
     /// Whether an action is running that ignores all clicks; the cursor is drawn faded meanwhile.
@@ -306,6 +315,8 @@ impl Session {
             self.holding = Some(item.to_owned());
         } else if !busy {
             self.pending_look = Some((item.to_owned(), self.clock));
+        } else {
+            self.skip_line();
         }
     }
 
@@ -332,6 +343,8 @@ impl Session {
                 if double {
                     self.interrupt();
                     self.commit();
+                } else {
+                    self.started_at = self.clock;
                 }
                 let walk_to = hotspot.walk_to.or(Some(point));
                 report(
@@ -342,12 +355,12 @@ impl Session {
                     self.fast_forward_to_room_change();
                 }
             }
-            Some(_) => {}
+            Some(_) => self.skip_line(),
             None if double && !busy => {
                 self.player.teleport(&self.room, point.x, point.y);
             }
             None if !busy => self.player.walk_to(&self.room, point.x, point.y),
-            None => {}
+            None => self.skip_line(),
         }
     }
 }

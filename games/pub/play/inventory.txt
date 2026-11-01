@@ -4,35 +4,49 @@
 # Positions are screen points (320x180, y up): the room is above the 26-high panel, so a room point
 # (x, y) is clicked at (x, y + 26). Two `click`s in a row are a double click.
 # Inventory slots (centres): 16,13  44,13  72,13 ...
-wait 3
+# Double clicking a door goes through it at once; double clicking the floor jumps there; a click on the
+# panel's empty right end (314, 13) skips a line.
 shot i1_start               # inventory slots empty
 click 136 149
 click 136 149               # double click the door: into the dark closet
-wait 6
-click 160 102
-click 160 102              # double click the switch: lights on
-wait 3
+wait 0.1
+click 160 52
+click 160 52                # jump to the switch
+click 160 94
+click 160 94                # double click the switch: lights on
+wait 0.5
+click 314 13                # skip "Click."
+wait 0.1
+click 150 50
+click 150 50                # jump to the key's spot
 move 151 92
 click 151 92
 click 151 92                # double click the key on the shelf: pick it up
-wait 6
-shot i2_picked_up           # key gone from the shelf, in the first slot
+wait 0.5
+shot i2_picked_up           # key gone from the shelf, in the first slot; "Got it."
+click 314 13
+wait 0.1
 where                       # in the closet at (150, 24), carrying ["brass_key"]
 click 180 89
 click 180 89                # double click the door: back to the bar
-wait 6
+wait 0.1
 
+click 45 96
+click 45 96                 # jump to the cupboard's spot (45, 70)
 click 16 13
 click 16 13                 # double click the key in the inventory: hold it
 shot i3_holding_key         # the key's slot highlighted
 move 45 126
 click 45 126                # the cupboard: use the key on it
-wait 4.5
-shot i4_cupboard               # "The key fits the cupboard!"
-wait 7
-where                       # at (45, 70), carrying ["coin"]
+wait 0.5
+shot i4_cupboard            # "The key fits the cupboard!"
+click 314 13
+wait 0.1
+click 314 13                # skip "Inside is a silver coin."
+wait 0.1
+where                       # at (45, 70), carrying ["coin"], nothing running
 
-click 16 13                 # single click the coin: look at it
-wait 1.5
+click 16 13                 # single click the coin: look at it (once a double click can no longer come)
+wait 1
 shot i5_look_at_coin        # "A silver coin. Heads, probably."
 quit

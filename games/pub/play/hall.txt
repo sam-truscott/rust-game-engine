@@ -1,25 +1,29 @@
-# Walk to the gap between the table and the bar, then in front of the bar, then restart.
+# The one play script that walks and talks at normal speed: walk to the gap between the table and the
+# bar, look at the bar (walk there, the whole line said), then restart. The others jump with double
+# clicks and skip speech with a click.
 # Run: target/debug/game.exe --auto games/pub/play/hall.txt --out screenshots
 # Positions are screen points (320x180, y up): the room is above the 26-high panel, so a room point
 # (x, y) is clicked at (x, y + 26).
 # The `where` lines print the player's state; compare them with the comments.
-wait 3
-shot 01_start
+wait 0.5
+shot 01_start       # "Press F2 to load & save."
+click 314 13        # skip the intro line (a click on the panel's empty right end)
+wait 0.1
 click 150 86        # room (150, 60): nothing to click on, so just walk
 wait 0.4
 shot 02_walking
-wait 6
-where            # (150, 60), not walking
+wait 1.8
+where               # (150, 60), not walking
 shot 03_beside_table
 key f1
 shot 04_overlay
 key f1
 click 240 96        # the bar: look at it from its standing spot
-wait 5
-where            # (240, 40), not walking
+wait 5.5
+where               # (240, 40), not walking, nothing running
 shot 05_at_the_bar
 key r
 wait 0.1
-where            # (30, 50) facing Front, speaking, intro script running again
+where               # (30, 50) facing Front, speaking, intro script running again
 shot 06_restarted
 quit

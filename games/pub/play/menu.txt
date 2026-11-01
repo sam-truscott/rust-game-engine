@@ -1,10 +1,13 @@
 # Opens the save menu (F2), saves, and loads the save again. Set GAME_SAVE_DIR to a scratch folder first
 # (scripted runs never touch the autosave, but the menu's saves are real files).
 # Expect: save-1 appears in the list; loading it puts the player back where it was saved.
-wait 3
-click 160 100
-wait 2
-where
+# Double clicking the floor jumps there.
+wait 0.5
+click 314 13      # skip the intro line
+wait 0.1
+click 150 86
+click 150 86      # jump to (150, 60)
+where             # (150, 60)
 key f2
 shot menu_open
 click 100 138     # Save game
@@ -12,10 +15,10 @@ shot menu_saved
 click 160 100     # (outside the list rows: nothing)
 key f2
 click 280 60
-wait 2
+click 280 60      # jump somewhere else
 where
 key f2
 click 100 122     # first row: the save just made
 wait 0.1
-where
+where             # (150, 60) again
 quit

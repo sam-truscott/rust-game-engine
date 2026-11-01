@@ -181,6 +181,52 @@ fn two_slow_clicks_are_not_a_double_click() {
 }
 
 #[test]
+fn a_click_skips_a_line_of_a_look_and_starts_nothing() {
+    let mut session = session();
+    click(&mut session, point("hall", "window"));
+    assert_eq!(
+        next_words(&mut session),
+        "A road, and a hedge on the other side."
+    );
+    session.click(FLOOR);
+    assert_eq!(session.player.speech(), None);
+    assert!(!session.player.is_walking());
+    assert_eq!(next_words(&mut session), "Nobody about.");
+    session.click(point("hall", "window"));
+    session.update(STEP);
+    assert!(!session.scripts.is_running());
+    assert_eq!(session.player.position(), stand("hall", "window"));
+}
+
+#[test]
+fn a_click_skips_the_intro() {
+    let mut session = Session::load().unwrap();
+    session.update(0.5);
+    assert!(session.player.speech().is_some());
+    session.click(FLOOR);
+    assert_eq!(session.player.speech(), None);
+    session.update(STEP);
+    assert!(!session.scripts.is_running());
+    assert!(!session.player.is_walking());
+}
+
+#[test]
+fn a_click_just_after_a_look_starts_does_not_skip_it() {
+    let mut session = with_the_key();
+    click(&mut session, SLOT_0);
+    assert_eq!(next_words(&mut session), "It must open something.");
+    session.click(FLOOR);
+    assert_eq!(
+        session.player.speech(),
+        Some("It must open something."),
+        "within a double click's time of the look starting"
+    );
+    session.update(0.5);
+    session.click(FLOOR);
+    assert_eq!(session.player.speech(), None);
+}
+
+#[test]
 fn a_third_quick_click_starts_a_new_double_click() {
     let mut session = session();
     double_click(&mut session, point("hall", "bar"));
