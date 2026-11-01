@@ -1,8 +1,8 @@
-use game::actor::Actor;
-use game::room::Room;
-use game::script::ScriptRunner;
-use game::world::World;
 use macroquad::math::vec2;
+use wumpus_g_engine::actor::Actor;
+use wumpus_g_engine::room::Room;
+use wumpus_g_engine::script::ScriptRunner;
+use wumpus_g_engine::world::World;
 
 const DELTA: f32 = 0.05;
 

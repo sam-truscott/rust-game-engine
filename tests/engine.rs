@@ -1,15 +1,15 @@
 //! The engine against a tiny game of its own (tests/fixtures/mini), so none of this depends on the
 //! pub: the manifest, the defaults it sets, rooms found by id, and the check.
 
-use game::manifest::Manifest;
-use game::session::Session;
-use game::ui;
 use macroquad::math::vec2;
+use wumpus_g_engine::manifest::Manifest;
+use wumpus_g_engine::session::Session;
+use wumpus_g_engine::ui;
 
 const STEP: f32 = 1.0 / 30.0;
 
 fn mini() -> Session {
-    game::assets::use_dir(concat!(env!("CARGO_MANIFEST_DIR"), "/tests/fixtures/mini"));
+    wumpus_g_engine::assets::use_dir(concat!(env!("CARGO_MANIFEST_DIR"), "/tests/fixtures/mini"));
     Session::load().unwrap()
 }
 
@@ -98,15 +98,15 @@ fn a_save_in_a_room_the_game_does_not_have_is_refused() {
 #[test]
 fn the_fixture_game_passes_the_check() {
     mini();
-    assert_eq!(game::check::check_game(), Vec::<String>::new());
+    assert_eq!(wumpus_g_engine::check::check_game(), Vec::<String>::new());
 }
 
 #[test]
 fn the_check_reports_a_broken_game() {
-    game::assets::use_dir(env!("CARGO_MANIFEST_DIR"));
-    assert!(!game::check::check_game().is_empty());
-    game::assets::use_dir(concat!(env!("CARGO_MANIFEST_DIR"), "/tests/fixtures"));
-    assert!(!game::check::check_game().is_empty());
+    wumpus_g_engine::assets::use_dir(env!("CARGO_MANIFEST_DIR"));
+    assert!(!wumpus_g_engine::check::check_game().is_empty());
+    wumpus_g_engine::assets::use_dir(concat!(env!("CARGO_MANIFEST_DIR"), "/tests/fixtures"));
+    assert!(!wumpus_g_engine::check::check_game().is_empty());
 }
 
 #[test]
@@ -130,7 +130,7 @@ fn a_street_can_be_dressed_from_the_room_file() {
         street = { glass = {0, 5, 20, 8}, gap = {1, 2}, crossing = {1, 1.5}, first = {0.5, 0.5},
           car = { pattern = {"BB", "WW"}, bodies = {{1, 0, 0}}, block = 2 },
           light = { wash_strength = 0.5 } } }"#;
-    let street = game::room::Room::from_lua(source, "x")
+    let street = wumpus_g_engine::room::Room::from_lua(source, "x")
         .unwrap()
         .street()
         .cloned()
@@ -149,7 +149,10 @@ fn a_street_can_be_dressed_from_the_room_file() {
         let source = format!(
             "return {{ walkArea = {{ {{0,0}}, {{10,0}}, {{10,10}} }}, street = {{ glass = {{0,0,1,1}}, {bad} }} }}"
         );
-        assert!(game::room::Room::from_lua(&source, "x").is_err(), "{bad}");
+        assert!(
+            wumpus_g_engine::room::Room::from_lua(&source, "x").is_err(),
+            "{bad}"
+        );
     }
 }
 

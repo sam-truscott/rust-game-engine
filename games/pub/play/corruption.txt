@@ -1,5 +1,5 @@
 # Buy a beer as in bar.txt and drink it: the screen corrupts for half a second.
-# Run: target/debug/game.exe --auto games/pub/play/corruption.txt --out screenshots
+# Run: target/debug/WumpusGEngine.exe --auto games/pub/play/corruption.txt --out screenshots
 # Positions are screen points (320x180, y up): add 26 to a room y. Two `click`s in a row are a double click.
 # Double clicking a door goes through it at once; double clicking the floor jumps there; a click on the
 # panel's empty right end (314, 13) skips a line.

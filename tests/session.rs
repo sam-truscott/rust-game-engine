@@ -1,14 +1,14 @@
-use game::room::{Hotspot, Room};
-use game::session::Session;
-use game::ui::{self, PANEL_HEIGHT};
 use macroquad::math::{Vec2, vec2};
+use wumpus_g_engine::room::{Hotspot, Room};
+use wumpus_g_engine::session::Session;
+use wumpus_g_engine::ui::{self, PANEL_HEIGHT};
 
 const STEP: f32 = 1.0 / 30.0;
 
 /// A room's hotspot, read from the same room file the game uses, so the tests follow the layout.
 fn hotspot(room: &str, id: &str) -> Hotspot {
     let path = format!("rooms/{room}.lua");
-    let source = game::assets::text(&path).unwrap();
+    let source = wumpus_g_engine::assets::text(&path).unwrap();
     let room = Room::from_lua(&source, &path).unwrap();
     room.hotspots().iter().find(|h| h.id == id).unwrap().clone()
 }

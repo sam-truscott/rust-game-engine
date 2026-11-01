@@ -1,8 +1,8 @@
 //! Helpers shared by the integration tests.
 #![allow(dead_code)]
 
-use game::room::Room;
 use macroquad::math::{Vec2, vec2};
+use wumpus_g_engine::room::Room;
 
 pub fn ring(points: &[(f32, f32)]) -> Vec<Vec2> {
     points.iter().map(|&(x, y)| vec2(x, y)).collect()

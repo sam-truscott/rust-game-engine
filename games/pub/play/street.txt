@@ -1,5 +1,5 @@
 # A car drives past the window: shots every half second show it crossing and the light sweeping the room.
-# Run: target/debug/game.exe --auto games/pub/play/street.txt --out screenshots
+# Run: target/debug/WumpusGEngine.exe --auto games/pub/play/street.txt --out screenshots
 wait 2
 wait 0.5
 shot car_01

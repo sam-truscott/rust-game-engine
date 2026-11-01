@@ -1,6 +1,6 @@
-use game::room::Room;
-use game::ui;
 use macroquad::math::{Rect, vec2};
+use wumpus_g_engine::room::Room;
+use wumpus_g_engine::ui;
 
 fn centre(rect: Rect) -> macroquad::math::Vec2 {
     vec2(rect.x + rect.w / 2.0, rect.y + rect.h / 2.0)

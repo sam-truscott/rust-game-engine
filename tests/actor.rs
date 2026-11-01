@@ -1,5 +1,5 @@
-use game::actor::Actor;
-use game::direction::Direction;
+use wumpus_g_engine::actor::Actor;
+use wumpus_g_engine::direction::Direction;
 mod common;
 
 use common::{assert_close, floor};

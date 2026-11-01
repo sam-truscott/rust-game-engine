@@ -1,6 +1,6 @@
-use game::pathfinder::is_visible;
-use game::room::{Room, offset};
 use macroquad::math::{Vec2, vec2};
+use wumpus_g_engine::pathfinder::is_visible;
+use wumpus_g_engine::room::{Room, offset};
 
 mod common;
 

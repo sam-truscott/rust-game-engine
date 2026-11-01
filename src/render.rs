@@ -1,14 +1,14 @@
 use std::collections::HashMap;
 
-use game::actor::Actor;
-use game::assets;
-use game::direction::Direction;
-use game::room::{Prop, Room, StreetView};
-use game::session::load_room;
-use game::street::{Car, CarLook};
-use game::ui::{RENDER_SCALE, SCREEN_HEIGHT, SCREEN_WIDTH};
-use game::world::World;
 use macroquad::prelude::*;
+use wumpus_g_engine::actor::Actor;
+use wumpus_g_engine::assets;
+use wumpus_g_engine::direction::Direction;
+use wumpus_g_engine::room::{Prop, Room, StreetView};
+use wumpus_g_engine::session::load_room;
+use wumpus_g_engine::street::{Car, CarLook};
+use wumpus_g_engine::ui::{RENDER_SCALE, SCREEN_HEIGHT, SCREEN_WIDTH};
+use wumpus_g_engine::world::World;
 
 pub const FRAME_WIDTH: f32 = 24.0;
 pub const FRAME_HEIGHT: f32 = 48.0;

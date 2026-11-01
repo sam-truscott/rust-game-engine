@@ -6,9 +6,9 @@
 use std::cell::RefCell;
 use std::collections::HashMap;
 
-use game::assets;
-use game::world::ScreenEffect;
 use macroquad::prelude::*;
+use wumpus_g_engine::assets;
+use wumpus_g_engine::world::ScreenEffect;
 
 const VERTEX: &str = r#"#version 100
 attribute vec3 position;

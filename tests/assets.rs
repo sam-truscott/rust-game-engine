@@ -1,6 +1,6 @@
-use game::assets;
-use game::room::Room;
 use macroquad::math::vec2;
+use wumpus_g_engine::assets;
+use wumpus_g_engine::room::Room;
 
 fn hall() -> Room {
     let source = assets::text("rooms/hall.lua").expect("rooms/hall.lua is missing");
@@ -85,11 +85,11 @@ fn room_named(id: &str) -> Room {
 
 #[test]
 fn every_room_has_its_script_images_and_reachable_hotspots() {
-    for id in &game::manifest::Manifest::load().unwrap().rooms {
+    for id in &wumpus_g_engine::manifest::Manifest::load().unwrap().rooms {
         let room = room_named(id);
         let path = format!("scripts/{id}.lua");
         let definitions = assets::text(&path).unwrap_or_else(|| panic!("{path} is missing"));
-        let mut runner = game::script::ScriptRunner::new().unwrap();
+        let mut runner = wumpus_g_engine::script::ScriptRunner::new().unwrap();
         runner.set_room(id).unwrap();
         runner.load_definitions(&path, &definitions).unwrap();
 
@@ -125,7 +125,7 @@ fn every_room_has_its_script_images_and_reachable_hotspots() {
 #[test]
 fn prop_ids_are_unique_across_rooms_because_the_world_keys_on_them() {
     let mut seen = std::collections::HashSet::new();
-    for id in &game::manifest::Manifest::load().unwrap().rooms {
+    for id in &wumpus_g_engine::manifest::Manifest::load().unwrap().rooms {
         for prop in room_named(id).props() {
             if let Some(prop_id) = &prop.id {
                 assert!(seen.insert(prop_id.clone()), "prop id {prop_id} is reused");
@@ -160,7 +160,7 @@ fn asset_paths_cannot_leave_the_assets_folder() {
 fn rooms_and_items_are_loaded_without_file_or_os_access() {
     assert!(Room::from_lua("local f = io.open return {}", "x").is_err());
     assert!(Room::from_lua("return load('return 1')()", "x").is_err());
-    assert!(game::items::Items::from_lua("os.exit()", "x").is_err());
+    assert!(wumpus_g_engine::items::Items::from_lua("os.exit()", "x").is_err());
 }
 
 #[test]
@@ -176,5 +176,5 @@ fn the_hall_window_shows_the_street_and_the_closet_has_none() {
 
 #[test]
 fn the_bundled_game_passes_the_check() {
-    assert_eq!(game::check::check_game(), Vec::<String>::new());
+    assert_eq!(wumpus_g_engine::check::check_game(), Vec::<String>::new());
 }

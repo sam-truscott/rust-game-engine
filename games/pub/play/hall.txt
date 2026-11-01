@@ -1,7 +1,7 @@
 # The one play script that walks and talks at normal speed: walk to the gap between the table and the
 # bar, look at the bar (walk there, the whole line said), then restart. The others jump with double
 # clicks and skip speech with a click.
-# Run: target/debug/game.exe --auto games/pub/play/hall.txt --out screenshots
+# Run: target/debug/WumpusGEngine.exe --auto games/pub/play/hall.txt --out screenshots
 # Positions are screen points (320x180, y up): the room is above the 26-high panel, so a room point
 # (x, y) is clicked at (x, y + 26).
 # The `where` lines print the player's state; compare them with the comments.

@@ -1,5 +1,5 @@
-use game::items::Items;
-use game::world::World;
+use wumpus_g_engine::items::Items;
+use wumpus_g_engine::world::World;
 
 #[test]
 fn items_are_carried_in_the_order_they_were_given_without_duplicates() {

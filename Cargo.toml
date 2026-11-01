@@ -1,7 +1,11 @@
 [package]
-name = "game"
+name = "wumpus-g-engine"
 version = "0.1.0"
 edition = "2024"
+
+[[bin]]
+name = "WumpusGEngine"
+path = "src/main.rs"
 
 [dependencies]
 macroquad = { version = "0.4.16", default-features = false }

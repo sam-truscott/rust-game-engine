@@ -1,7 +1,7 @@
-use game::menu::{self, MenuAction, SaveMenu};
-use game::save::{AUTOSAVE, SaveData, SaveStore};
-use game::session::Session;
 use macroquad::math::vec2;
+use wumpus_g_engine::menu::{self, MenuAction, SaveMenu};
+use wumpus_g_engine::save::{AUTOSAVE, SaveData, SaveStore};
+use wumpus_g_engine::session::Session;
 
 fn temp_store(name: &str) -> SaveStore {
     let dir = std::env::temp_dir().join(format!("game-save-test-{name}-{}", std::process::id()));

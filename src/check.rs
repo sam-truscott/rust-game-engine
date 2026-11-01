@@ -1,5 +1,5 @@
 //! Looks over the game the assets layer is pointing at and lists what is wrong with it, for
-//! `game --check [dir]` and for tests that want to know a game is whole.
+//! `WumpusGEngine --check [dir]` and for tests that want to know a game is whole.
 
 use std::collections::HashSet;
 

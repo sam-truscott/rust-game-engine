@@ -1,7 +1,7 @@
-use game::actor::Actor;
-use game::room::Room;
-use game::script::ScriptRunner;
 use macroquad::math::vec2;
+use wumpus_g_engine::actor::Actor;
+use wumpus_g_engine::room::Room;
+use wumpus_g_engine::script::ScriptRunner;
 
 const DELTA: f32 = 0.05;
 
@@ -201,7 +201,7 @@ fn syntax_error_is_reported_when_starting() {
 fn animate_blocks_the_script_until_the_frames_have_played() {
     let room = floor();
     let mut actor = Actor::new(10.0, 50.0);
-    let world = game::world::World::default();
+    let world = wumpus_g_engine::world::World::default();
     let mut runner = ScriptRunner::with_world(world.clone()).unwrap();
     runner
         .start("test", "animate('door', 0, 3, 10) setFrame('lid', 2)")
@@ -220,7 +220,7 @@ fn animate_blocks_the_script_until_the_frames_have_played() {
 
 #[test]
 fn animate_uses_the_props_fps_from_the_room_unless_given() {
-    use game::room::Prop;
+    use wumpus_g_engine::room::Prop;
     let room = Room::with_options(
         floor_outline(),
         vec![],
@@ -241,7 +241,7 @@ fn animate_uses_the_props_fps_from_the_room_unless_given() {
         }],
     );
     let mut actor = Actor::new(10.0, 50.0);
-    let world = game::world::World::default();
+    let world = wumpus_g_engine::world::World::default();
     let mut runner = ScriptRunner::with_world(world.clone()).unwrap();
     runner.start("test", "animate('door', 0, 3)").unwrap();
     step(&mut runner, &room, &mut actor);
@@ -290,7 +290,7 @@ fn non_finite_numbers_are_refused_so_a_script_cannot_stall_the_game() {
 fn animate_can_play_backwards_through_lua() {
     let room = floor();
     let mut actor = Actor::new(10.0, 50.0);
-    let world = game::world::World::default();
+    let world = wumpus_g_engine::world::World::default();
     let mut runner = ScriptRunner::with_world(world.clone()).unwrap();
     runner
         .start("test", "setFrame('door', 3) animate('door', 3, 0, 20)")
@@ -316,7 +316,7 @@ fn clip_room() -> Room {
 fn play_runs_a_named_clip_with_its_own_fps_or_the_props() {
     let room = clip_room();
     let mut actor = Actor::new(10.0, 50.0);
-    let world = game::world::World::default();
+    let world = wumpus_g_engine::world::World::default();
     let mut runner = ScriptRunner::with_world(world.clone()).unwrap();
     runner.start("test", "play('barman', 'pour')").unwrap();
     for _ in 0..10 {

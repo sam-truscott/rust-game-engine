@@ -1,5 +1,5 @@
 # Single click to look at things, double click to interact with them.
-# Run: target/debug/game.exe --auto games/pub/play/hotspots.txt --out screenshots
+# Run: target/debug/WumpusGEngine.exe --auto games/pub/play/hotspots.txt --out screenshots
 # Positions are screen points (320x180, y up): the room is above the 26-high panel, so a room point
 # (x, y) is clicked at (x, y + 26). Two `click`s in a row are a double click (the time step is fixed).
 # To keep it short the player jumps to each spot (double click on the floor) and speech is skipped with

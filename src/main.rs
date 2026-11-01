@@ -8,14 +8,14 @@ use std::path::Path;
 
 use automation::{Automation, FIXED_DELTA, Frame, Inputs};
 use effects::ScreenEffects;
-use game::manifest::Manifest;
-use game::menu::{self, MenuAction, SaveMenu};
-use game::save::{AUTOSAVE, SaveStore};
-use game::session::Session;
-use game::ui;
-use game::ui::{RENDER_SCALE, SCREEN_HEIGHT, SCREEN_WIDTH};
 use macroquad::prelude::*;
 use render::{CharacterSprite, CursorSprite, FRAME_HEIGHT, RoomRenderer, Textures};
+use wumpus_g_engine::manifest::Manifest;
+use wumpus_g_engine::menu::{self, MenuAction, SaveMenu};
+use wumpus_g_engine::save::{AUTOSAVE, SaveStore};
+use wumpus_g_engine::session::Session;
+use wumpus_g_engine::ui;
+use wumpus_g_engine::ui::{RENDER_SCALE, SCREEN_HEIGHT, SCREEN_WIDTH};
 
 const SPEECH_WRAP_WIDTH: f32 = 160.0;
 const TEXT_SIZE: f32 = 8.0;
@@ -109,7 +109,7 @@ struct Game {
 impl Game {
     fn new(new_game: bool, persist: bool) -> Self {
         let store = SaveStore::in_default_dir(
-            &Manifest::load().map_or_else(|_| "Game".to_owned(), |manifest| manifest.id),
+            &Manifest::load().map_or_else(|_| "WumpusGEngine".to_owned(), |manifest| manifest.id),
         );
         let session = match (persist, new_game) {
             (false, _) => load_session(),
@@ -663,9 +663,9 @@ fn parse_args() -> Args {
 /// any window opens.
 fn check_and_exit(dir: Option<String>) -> ! {
     if let Some(dir) = dir {
-        game::assets::use_dir(dir);
+        wumpus_g_engine::assets::use_dir(dir);
     }
-    let problems = game::check::check_game();
+    let problems = wumpus_g_engine::check::check_game();
     for problem in &problems {
         println!("{problem}");
     }
@@ -682,11 +682,11 @@ fn window_conf() -> Conf {
         if word == "--game"
             && let Some(dir) = words.next()
         {
-            game::assets::use_dir(dir);
+            wumpus_g_engine::assets::use_dir(dir);
         }
     }
     Conf {
-        window_title: Manifest::load().map_or_else(|_| "Game".to_owned(), |m| m.title),
+        window_title: Manifest::load().map_or_else(|_| "WumpusGEngine".to_owned(), |m| m.title),
         window_width: 1280,
         window_height: 720,
         fullscreen: std::env::args().any(|word| word == "--fullscreen" || word == "-f"),
@@ -698,7 +698,7 @@ fn window_conf() -> Conf {
 async fn main() {
     let args = parse_args();
     if let Some(dir) = &args.game {
-        game::assets::use_dir(dir);
+        wumpus_g_engine::assets::use_dir(dir);
     }
     let mut automation = args.script.as_deref().map(|script| {
         Automation::load(script, &args.out).unwrap_or_else(|error| {

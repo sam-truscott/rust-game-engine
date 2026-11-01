@@ -136,7 +136,7 @@ impl SaveStore {
         SaveStore { dir: dir.into() }
     }
 
-    /// `GAME_SAVE_DIR` if set, else `%APPDATA%\Game\saves` (`~/.local/share/game/saves` elsewhere),
+    /// `GAME_SAVE_DIR` if set, else `%APPDATA%\<id>\saves` (`~/.local/share/<id>/saves` elsewhere),
     /// else `saves` in the working directory.
     pub fn in_default_dir(id: &str) -> Self {
         let var = |name: &str| std::env::var_os(name).map(PathBuf::from);

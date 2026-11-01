@@ -1,5 +1,5 @@
 //! Scripted play, for checking the game without real input or screen capture:
-//! `game --auto steps.txt [--out dir]`. One command per line, `#` starts a comment.
+//! `WumpusGEngine --auto steps.txt [--out dir]`. One command per line, `#` starts a comment.
 //!
 //! ```text
 //! wait 3.0        game-time seconds to let pass
