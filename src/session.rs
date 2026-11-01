@@ -43,6 +43,9 @@ pub struct Session {
     pub cursor: Vec2,
     clock: f32,
     last_click: Option<(f32, Vec2)>,
+    /// A carried item single clicked at this time, looked at once no second click has made it a
+    /// double click; looking at once would show its line until the second click cut it short.
+    pending_look: Option<(String, f32)>,
     /// Set when a script started that a click must not cut short (using an item, interacting).
     committed: bool,
     committed_at: f32,
@@ -88,6 +91,7 @@ impl Session {
             cursor: Vec2::ZERO,
             clock: 0.0,
             last_click: None,
+            pending_look: None,
             committed: false,
             committed_at: 0.0,
             room_changed: false,
@@ -154,6 +158,13 @@ impl Session {
 
     pub fn update(&mut self, delta_seconds: f32) {
         self.clock += delta_seconds;
+        if let Some((item, _)) = self
+            .pending_look
+            .take_if(|(_, at)| self.clock - *at > DOUBLE_CLICK_SECONDS)
+            && !self.scripts.is_running()
+        {
+            report(&item, self.scripts.interact_item(&item, LOOK));
+        }
         self.player.update(delta_seconds);
         self.scripts
             .update(delta_seconds, &self.room, &mut self.player);
@@ -193,7 +204,8 @@ impl Session {
     /// A click at a screen point (see `ui`). A single click looks at what is under it, or walks if
     /// there is nothing; a double click interacts with it (through a door at once, or jumps to the spot if there is
     /// nothing). The single click has already started
-    /// looking by the time the second arrives, so that is cancelled in favour of interacting.
+    /// looking by the time the second arrives, so that is cancelled in favour of interacting. On a
+    /// carried item there is no walk to hide the look, so it waits until a second click can no longer come.
     ///
     /// While an action (using an item, interacting) runs a click only skips the current speech line. Other clicks that
     /// would start something are ignored while a script is running, except the second
@@ -211,6 +223,8 @@ impl Session {
             }
             return;
         }
+        // Whatever this click does replaces the look a single click on an item is waiting to start.
+        self.pending_look = None;
         let holding = self.holding.is_some();
         let double = self.is_double_click(point) && !holding;
         let busy = self.scripts.is_running();
@@ -278,7 +292,7 @@ impl Session {
             self.interrupt();
             self.holding = Some(item.to_owned());
         } else if !busy {
-            report(item, self.scripts.interact_item(item, LOOK));
+            self.pending_look = Some((item.to_owned(), self.clock));
         }
     }
 

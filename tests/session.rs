@@ -226,7 +226,6 @@ fn clicks_are_ignored_while_an_action_is_playing_out() {
 
     double_click(&mut session, SLOT_0);
     assert_eq!(session.holding, None);
-    assert!(session.scripts.is_running());
 
     settle(&mut session);
     assert!(!session.input_locked());
@@ -295,6 +294,22 @@ fn a_double_click_on_a_carried_item_picks_it_up_to_use() {
     assert_eq!(session.holding.as_deref(), Some("brass_key"));
     assert_eq!(session.player.speech(), None);
     assert!(!session.scripts.is_running());
+}
+
+#[test]
+fn a_slow_double_click_on_a_carried_item_never_shows_its_look() {
+    let mut session = with_the_key();
+    click(&mut session, SLOT_0);
+    for _ in 0..10 {
+        session.update(STEP);
+        assert_eq!(session.player.speech(), None);
+    }
+    session.click(SLOT_0);
+    assert_eq!(session.holding.as_deref(), Some("brass_key"));
+    for _ in 0..100 {
+        session.update(STEP);
+        assert_eq!(session.player.speech(), None);
+    }
 }
 
 #[test]
