@@ -232,6 +232,8 @@ impl Session {
             self.committed = false;
         }
         if self.input_locked() {
+            // Remembered, so if this click ends the action the next one can still make it a double click.
+            self.is_double_click(point);
             self.skip_line();
             return;
         }

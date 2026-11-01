@@ -270,7 +270,8 @@ fn clicks_are_ignored_while_an_action_is_playing_out() {
     assert!(session.scripts.is_running());
     assert!(session.input_locked());
 
-    double_click(&mut session, SLOT_0);
+    session.click(SLOT_0);
+    session.click(SLOT_0);
     assert_eq!(session.holding, None);
 
     settle(&mut session);
@@ -467,6 +468,26 @@ fn the_closet_is_dark_until_the_switch_is_used() {
         next_words(&mut session),
         "Shelves of clean glasses for the pub."
     );
+}
+
+#[test]
+fn a_double_click_whose_first_click_ends_an_action_still_interacts() {
+    let mut session = in_the_closet();
+    double_click(&mut session, point("closet", "switch"));
+    assert_eq!(next_words(&mut session), "Click.");
+    session.update(0.5);
+    assert!(session.input_locked());
+
+    session.click(point("closet", "door"));
+    session.update(STEP);
+    assert!(
+        !session.scripts.is_running(),
+        "the click skipped the last line"
+    );
+    session.click(point("closet", "door"));
+    settle(&mut session);
+    session.update(STEP);
+    assert_eq!(session.room_id, "hall");
 }
 
 #[test]
